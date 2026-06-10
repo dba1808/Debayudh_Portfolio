@@ -81,11 +81,56 @@ const useSmoothScroll = () => {
 
 
     let frameId = null;
+    let idleTimer = null;
+    let isIdle = false;
+
     function raf(time) {
+      // Stop the RAF chain if hidden/idle.
+      if (document.hidden || isIdle) {
+        frameId = null;
+        return;
+      }
       lenis.raf(time);
       frameId = requestAnimationFrame(raf);
     }
-    frameId = requestAnimationFrame(raf);
+
+    const startRafIfNeeded = () => {
+      if (document.hidden || isIdle) return;
+      if (frameId == null) frameId = requestAnimationFrame(raf);
+    };
+
+    const stopRaf = () => {
+      if (frameId) cancelAnimationFrame(frameId);
+      frameId = null;
+    };
+
+    const handleVisibility = () => {
+      if (document.hidden) {
+        stopRaf();
+        return;
+      }
+      // When visible again, resume only if not idle.
+      startRafIfNeeded();
+    };
+
+    const markActive = () => {
+      isIdle = false;
+      if (idleTimer) clearTimeout(idleTimer);
+      idleTimer = setTimeout(() => {
+        isIdle = true;
+        stopRaf();
+      }, 900);
+      startRafIfNeeded();
+    };
+
+    // Start immediately and then go idle after user stops interacting.
+    handleVisibility();
+    markActive();
+
+    document.addEventListener("visibilitychange", handleVisibility);
+    window.addEventListener("wheel", markActive, { passive: true });
+    window.addEventListener("touchstart", markActive, { passive: true });
+
 
     // Sync Lenis with anchor links (hash navigation)
     const handleAnchorClick = (e) => {
@@ -178,7 +223,14 @@ const CustomCursor = () => {
     };
     mediaQuery.addEventListener("change", handleMediaChange);
 
+    let lastCursorUpdate = 0;
+    const cursorUpdateTargetMs = 1000 / 45; // throttle cursor updates
+
     const handleMouseMove = (e) => {
+      const now = performance.now();
+      if (now - lastCursorUpdate < cursorUpdateTargetMs) return;
+      lastCursorUpdate = now;
+
       cursorX.set(e.clientX);
       cursorY.set(e.clientY);
       if (!visibleRef.current) {

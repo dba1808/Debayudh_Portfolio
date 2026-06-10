@@ -204,7 +204,7 @@ const Hero = () => {
           background: "transparent",
         }}
       >
-        <source src="/write_DEBAYUDH_in_better_way_a.mp4" type="video/mp4" />
+        <source src="/new_one.mp4" type="video/mp4" />
       </video>
 
       {/* Animated gradient fallback - always rendered behind the video to prevent any blank screen flashes */}

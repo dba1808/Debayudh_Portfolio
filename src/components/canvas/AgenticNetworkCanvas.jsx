@@ -67,69 +67,96 @@ const AgenticNetworkCanvas = () => {
     window.addEventListener("touchmove", handleTouchMove, { passive: true });
 
 
+    // Throttle drawing to reduce CPU/GPU load while keeping animation smooth.
+    // Target ~30fps on average (33ms per frame). Visuals remain the same.
+    let lastDraw = 0;
+    const targetFrameMs = 1000 / 30;
+
     const animate = (time) => {
-      const t = time * 0.001;
-      const w = canvas.width / (Math.min(window.devicePixelRatio || 1, 2));
-      const h = canvas.height / (Math.min(window.devicePixelRatio || 1, 2));
+      const now = time || performance.now();
+      if (now - lastDraw >= targetFrameMs) {
+        lastDraw = now;
 
-      ctx.clearRect(0, 0, w, h);
+        const t = now * 0.001;
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        const w = canvas.width / dpr;
+        const h = canvas.height / dpr;
 
-      // Update node positions
-      nodes.forEach((node) => {
-        const cursorInf = 0.04;
-        node.x =
-          node.baseX +
-          Math.sin(t * node.speed + node.offset) * 0.06 +
-          (mouse.current.x - 0.5) * cursorInf;
-        node.y =
-          node.baseY +
-          Math.cos(t * node.speed * 0.7 + node.offset) * 0.05 +
-          (mouse.current.y - 0.5) * cursorInf;
-      });
+        ctx.clearRect(0, 0, w, h);
 
-      // Draw connections
-      for (let i = 0; i < nodes.length; i++) {
-        for (let j = i + 1; j < nodes.length; j++) {
-          const dx = nodes[i].x - nodes[j].x;
-          const dy = nodes[i].y - nodes[j].y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist < connectionThreshold) {
-            const alpha = (1 - dist / connectionThreshold) * 0.15;
-            ctx.beginPath();
-            ctx.moveTo(nodes[i].x * w, nodes[i].y * h);
-            ctx.lineTo(nodes[j].x * w, nodes[j].y * h);
-            ctx.strokeStyle = `rgba(145, 94, 255, ${alpha})`;
-            ctx.lineWidth = 0.5;
-            ctx.stroke();
+        // Update node positions
+        nodes.forEach((node) => {
+          const cursorInf = 0.04;
+          node.x =
+            node.baseX +
+            Math.sin(t * node.speed + node.offset) * 0.06 +
+            (mouse.current.x - 0.5) * cursorInf;
+          node.y =
+            node.baseY +
+            Math.cos(t * node.speed * 0.7 + node.offset) * 0.05 +
+            (mouse.current.y - 0.5) * cursorInf;
+        });
+
+        // Draw connections
+        for (let i = 0; i < nodes.length; i++) {
+          for (let j = i + 1; j < nodes.length; j++) {
+            const dx = nodes[i].x - nodes[j].x;
+            const dy = nodes[i].y - nodes[j].y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < connectionThreshold) {
+              const alpha = (1 - dist / connectionThreshold) * 0.15;
+              ctx.beginPath();
+              ctx.moveTo(nodes[i].x * w, nodes[i].y * h);
+              ctx.lineTo(nodes[j].x * w, nodes[j].y * h);
+              ctx.strokeStyle = `rgba(145, 94, 255, ${alpha})`;
+              ctx.lineWidth = 0.5;
+              ctx.stroke();
+            }
           }
         }
+
+        // Draw nodes
+        nodes.forEach((node) => {
+          ctx.beginPath();
+          ctx.arc(node.x * w, node.y * h, node.radius, 0, Math.PI * 2);
+          ctx.fillStyle = node.color;
+          ctx.globalAlpha = 0.6;
+          ctx.fill();
+          ctx.globalAlpha = 1;
+
+          // Glow
+          ctx.beginPath();
+          ctx.arc(node.x * w, node.y * h, node.radius * 3, 0, Math.PI * 2);
+          const grad = ctx.createRadialGradient(
+            node.x * w,
+            node.y * h,
+            0,
+            node.x * w,
+            node.y * h,
+            node.radius * 3
+          );
+          grad.addColorStop(0, node.color + "20");
+          grad.addColorStop(1, "transparent");
+          ctx.fillStyle = grad;
+          ctx.fill();
+        });
       }
 
-      // Draw nodes
-      nodes.forEach((node) => {
-        ctx.beginPath();
-        ctx.arc(node.x * w, node.y * h, node.radius, 0, Math.PI * 2);
-        ctx.fillStyle = node.color;
-        ctx.globalAlpha = 0.6;
-        ctx.fill();
-        ctx.globalAlpha = 1;
-
-        // Glow
-        ctx.beginPath();
-        ctx.arc(node.x * w, node.y * h, node.radius * 3, 0, Math.PI * 2);
-        const grad = ctx.createRadialGradient(
-          node.x * w, node.y * h, 0,
-          node.x * w, node.y * h, node.radius * 3
-        );
-        grad.addColorStop(0, node.color + "20");
-        grad.addColorStop(1, "transparent");
-        ctx.fillStyle = grad;
-        ctx.fill();
-      });
-
-      animRef.current = requestAnimationFrame(animate);
+      // Keep scheduling; pause work when tab is hidden.
+      if (!document.hidden) {
+        animRef.current = requestAnimationFrame(animate);
+      }
     };
 
+    const handleVisibility = () => {
+      if (!document.hidden) {
+        // Resume animation (throttling still applies).
+        animRef.current = requestAnimationFrame(animate);
+      }
+    };
+
+    // Start
+    document.addEventListener("visibilitychange", handleVisibility);
     animRef.current = requestAnimationFrame(animate);
 
     return () => {
@@ -137,6 +164,7 @@ const AgenticNetworkCanvas = () => {
       window.removeEventListener("resize", resize);
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("touchmove", handleTouchMove);
+      document.removeEventListener("visibilitychange", handleVisibility);
     };
   }, [isInView]);
 
