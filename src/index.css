@@ -357,6 +357,37 @@ a, button, input, textarea {
   letter-spacing: 0.02em;
 }
 
+/* Mobile: prevent education timeline overlap/bleed */
+@media (max-width: 640px) {
+  .vertical-timeline {
+    padding-top: 8px;
+    padding-bottom: 8px;
+  }
+
+  .vertical-timeline-element-content {
+    width: 100% !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+  }
+
+  .vertical-timeline-element {
+    padding-top: 6px !important;
+    padding-bottom: 6px !important;
+  }
+
+  /* Reduce cramped spacing inside cards */
+  .education-card-body {
+    margin-bottom: 6px;
+  }
+
+  .education-card-points {
+    margin-top: 10px !important;
+    margin-left: 18px !important;
+    padding-right: 8px;
+  }
+}
+
+
 /* ========== BACK TO TOP BUTTON ========== */
 @keyframes float-up {
   0%, 100% { transform: translateY(0); }

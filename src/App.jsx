@@ -1,33 +1,77 @@
-import { useState, useEffect, useRef } from "react";
+import { Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BrowserRouter } from "react-router-dom";
-import { motion, AnimatePresence, useMotionValue, useSpring } from "framer-motion";
+import { motion, AnimatePresence, useMotionValue, useSpring, useScroll, useTransform } from "framer-motion";
 import Lenis from "lenis";
-import {
-  About,
-  Contact,
-  Experience,
-  Hero,
-  Navbar,
-  Tech,
-  Works,
-  Resume,
-  Certifications,
-  JourneyExperience,
-  StarsCanvas,
-  AmbientLighting,
-  ScrollProgressIndicator,
-  PremiumFooter,
-  SectionDivider as PremiumSectionDivider,
-} from "./components";
-import AgenticNetworkCanvas from "./components/canvas/AgenticNetworkCanvas";
+import Hero from "./components/Hero";
+import Navbar from "./components/Navbar";
+import AmbientLighting from "./components/AmbientLighting";
+import ScrollProgressIndicator from "./components/ScrollProgressIndicator";
+import PremiumFooter from "./components/PremiumFooter";
+import PremiumSectionDivider from "./components/SectionDivider";
+import { useInView } from "./hooks/useInView";
 import { pageReveal } from "./utils/motion";
+import ErrorBoundary from "./components/ErrorBoundary";
+
+const About = lazy(() => import("./components/About"));
+const Contact = lazy(() => import("./components/Contact"));
+const Experience = lazy(() => import("./components/Experience"));
+const Tech = lazy(() => import("./components/Tech"));
+const Works = lazy(() => import("./components/Works"));
+const Resume = lazy(() => import("./components/Resume"));
+const Certifications = lazy(() => import("./components/Certifications"));
+const JourneyExperience = lazy(() => import("./components/JourneyExperience"));
+const StarsCanvas = lazy(() => import("./components/canvas/Stars"));
+const AgenticNetworkCanvas = lazy(() => import("./components/canvas/AgenticNetworkCanvas"));
+const ParallaxHighlight = memo(() => {
+  const ref = useRef(null);
+  const { scrollYProgress } = useScroll({
+    target: ref,
+    offset: ["start end", "end start"],
+  });
+  const y = useTransform(scrollYProgress, [0, 1], [-80, 80]);
+
+  return (
+    <motion.div
+      ref={ref}
+      style={{ y }}
+      className="absolute inset-0 cyan-purple-bg-highlight z-0 pointer-events-none"
+    />
+  );
+});
+
+const SectionFallback = memo(({ minHeight = 360 }) => (
+  <div style={{ minHeight }} aria-hidden="true" />
+));
+
+const LazyInView = memo(({ children, minHeight = 360, rootMargin = "900px 0px" }) => {
+  const [ref, isInView] = useInView({ rootMargin, threshold: 0.01, once: true });
+
+  return (
+    <div ref={ref} style={!isInView ? { minHeight } : undefined}>
+      {isInView ? (
+        <Suspense fallback={<SectionFallback minHeight={minHeight} />}>
+          {children}
+        </Suspense>
+      ) : null}
+    </div>
+  );
+});
 
 /* ─── Lenis Ultra-Smooth Scroll Provider ─── */
 const useSmoothScroll = () => {
   useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      return undefined;
+    }
+
+    // Disable Lenis on touch devices to enable browser native momentum scrolling
+    if (window.matchMedia("(pointer: coarse)").matches) {
+      return undefined;
+    }
+
     const lenis = new Lenis({
-      lerp: 0.08,             // Linear interpolation for buttery momentum deceleration (0.07-0.09 is optimal)
-      wheelMultiplier: 0.9,   // Slightly adjusted wheel input for liquid-smooth control
+      lerp: 0.065,            // Slower, liquid-smooth deceleration
+      wheelMultiplier: 0.82,  // More cinematic wheel increment scaling
       touchMultiplier: 1.6,   // Smooth touchpad/touch inertia multiplier
       syncTouch: true,        // Sync smooth scroll on precision trackpads and mobile devices
       infinite: false,
@@ -35,11 +79,13 @@ const useSmoothScroll = () => {
 
     window.lenis = lenis;
 
+
+    let frameId = null;
     function raf(time) {
       lenis.raf(time);
-      requestAnimationFrame(raf);
+      frameId = requestAnimationFrame(raf);
     }
-    requestAnimationFrame(raf);
+    frameId = requestAnimationFrame(raf);
 
     // Sync Lenis with anchor links (hash navigation)
     const handleAnchorClick = (e) => {
@@ -56,6 +102,7 @@ const useSmoothScroll = () => {
     document.addEventListener("click", handleAnchorClick);
 
     return () => {
+      if (frameId) cancelAnimationFrame(frameId);
       document.removeEventListener("click", handleAnchorClick);
       lenis.destroy();
       window.lenis = null;
@@ -67,12 +114,24 @@ const BackToTop = () => {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
+    let ticking = false;
     const toggleVisibility = () => {
-      setVisible(window.scrollY > 400);
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => {
+        setVisible((current) => {
+          const next = window.scrollY > 400;
+          return current === next ? current : next;
+        });
+        ticking = false;
+      });
     };
-    window.addEventListener("scroll", toggleVisibility);
+    window.addEventListener("scroll", toggleVisibility, { passive: true });
+    toggleVisibility();
     return () => window.removeEventListener("scroll", toggleVisibility);
   }, []);
+
+  const scrollTop = useCallback(() => window.lenis?.scrollTo(0, { duration: 1.4 }), []);
 
   return (
     <AnimatePresence>
@@ -83,7 +142,7 @@ const BackToTop = () => {
           exit={{ opacity: 0, scale: 0.5 }}
           transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
           className='back-to-top'
-          onClick={() => window.lenis?.scrollTo(0, { duration: 1.4 })}
+          onClick={scrollTop}
           aria-label='Back to top'
         >
           <svg viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'>
@@ -101,17 +160,19 @@ const CustomCursor = () => {
   const cursorY = useMotionValue(-100);
 
   // High-frequency spring values for buttery-smooth trail tracking
-  const springConfig = { damping: 28, stiffness: 220, mass: 0.45 };
+  const springConfig = useMemo(() => ({ damping: 28, stiffness: 220, mass: 0.45 }), []);
   const cursorXSpring = useSpring(cursorX, springConfig);
   const cursorYSpring = useSpring(cursorY, springConfig);
 
   const [hovered, setHovered] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== "undefined" ? window.matchMedia("(pointer: coarse)").matches : false
+  );
+  const visibleRef = useRef(false);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia("(pointer: coarse)");
-    setIsMobile(mediaQuery.matches);
     const handleMediaChange = (e) => {
       setIsMobile(e.matches);
     };
@@ -120,7 +181,10 @@ const CustomCursor = () => {
     const handleMouseMove = (e) => {
       cursorX.set(e.clientX);
       cursorY.set(e.clientY);
-      if (!isVisible) setIsVisible(true);
+      if (!visibleRef.current) {
+        visibleRef.current = true;
+        setIsVisible(true);
+      }
     };
 
     const handleMouseOver = (e) => {
@@ -141,7 +205,7 @@ const CustomCursor = () => {
       }
     };
 
-    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mousemove", handleMouseMove, { passive: true });
     window.addEventListener("mouseover", handleMouseOver);
     window.addEventListener("mouseout", handleMouseOut);
 
@@ -151,7 +215,7 @@ const CustomCursor = () => {
       window.removeEventListener("mouseover", handleMouseOver);
       window.removeEventListener("mouseout", handleMouseOut);
     };
-  }, [isVisible]);
+  }, [cursorX, cursorY]);
 
   if (isMobile || !isVisible) return null;
 
@@ -208,37 +272,63 @@ const App = () => {
         <CustomCursor />
         <div className='bg-hero-pattern bg-cover bg-no-repeat bg-center'>
           <Navbar />
-          <Hero />
+          <ErrorBoundary minHeight="100vh">
+            <Hero />
+          </ErrorBoundary>
         </div>
         <PremiumSectionDivider variant="neural" />
 
         {/* About section with floating Agentic Network Canvas */}
-        <div className="relative">
-          <div className="absolute inset-0 cyan-purple-bg-highlight z-0" />
-          <AgenticNetworkCanvas />
-          <About />
-        </div>
+        <LazyInView minHeight={650}>
+          <div className="relative">
+            <ParallaxHighlight />
+            <ErrorBoundary minHeight="650px">
+              <AgenticNetworkCanvas />
+            </ErrorBoundary>
+            <About />
+          </div>
+        </LazyInView>
 
         <PremiumSectionDivider variant="particles" />
-        <Experience />
+        <LazyInView minHeight={980}>
+          <Experience />
+        </LazyInView>
         <PremiumSectionDivider variant="neural" />
-        <Tech />
+        <LazyInView minHeight={360}>
+          <Tech />
+        </LazyInView>
         <PremiumSectionDivider variant="particles" />
-        <div className="relative">
-          <div className="absolute inset-0 cyan-purple-bg-highlight z-0" />
-          <Works />
-        </div>
+        <LazyInView minHeight={720}>
+          <div className="relative">
+            <ParallaxHighlight />
+            <ErrorBoundary minHeight="720px">
+              <Works />
+            </ErrorBoundary>
+          </div>
+        </LazyInView>
         <PremiumSectionDivider variant="neural" />
-        <Resume />
+        <LazyInView minHeight={720}>
+          <Resume />
+        </LazyInView>
         <PremiumSectionDivider variant="particles" />
-        <Certifications />
+        <LazyInView minHeight={620}>
+          <Certifications />
+        </LazyInView>
         <PremiumSectionDivider variant="neural" />
-        <JourneyExperience />
+        <LazyInView minHeight={820}>
+          <ErrorBoundary minHeight="620px">
+            <JourneyExperience />
+          </ErrorBoundary>
+        </LazyInView>
         <PremiumSectionDivider variant="particles" />
-        <div className='relative z-0'>
-          <Contact />
-          <StarsCanvas />
-        </div>
+        <LazyInView minHeight={760}>
+          <div className='relative z-0'>
+            <ErrorBoundary minHeight="600px">
+              <Contact />
+              <StarsCanvas />
+            </ErrorBoundary>
+          </div>
+        </LazyInView>
 
         {/* Premium footer */}
         <PremiumFooter />

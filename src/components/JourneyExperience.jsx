@@ -9,6 +9,7 @@ import { SectionWrapper } from "../hoc";
 import { textVariant, fadeIn } from "../utils/motion";
 import { certifications } from "../constants";
 import CanvasLoader from "./Loader";
+import { useInView } from "../hooks/useInView";
 
 /* ══════════════════════════════════════════════════════════
    REALM DATA
@@ -77,6 +78,8 @@ const REALMS = [
   },
 ];
 
+const JOURNEY_PARTICLE_COUNT = 360;
+
 /* ══════════════════════════════════════════════════════════
    CAMERA CONTROLLER
    ══════════════════════════════════════════════════════════ */
@@ -105,11 +108,10 @@ function CameraController({ activeRealm }) {
 
 function GlobalParticles() {
   const ref = useRef();
-  const count = 600;
 
   const positions = useMemo(() => {
-    const pos = new Float32Array(count * 3);
-    for (let i = 0; i < count; i++) {
+    const pos = new Float32Array(JOURNEY_PARTICLE_COUNT * 3);
+    for (let i = 0; i < JOURNEY_PARTICLE_COUNT; i++) {
       pos[i * 3] = (Math.random() - 0.5) * 35;
       pos[i * 3 + 1] = Math.random() * 18 - 2;
       pos[i * 3 + 2] = Math.random() * -180 + 15;
@@ -127,7 +129,7 @@ function GlobalParticles() {
   return (
     <points ref={ref}>
       <bufferGeometry>
-        <bufferAttribute attach="attributes-position" array={positions} count={count} itemSize={3} />
+        <bufferAttribute attach="attributes-position" array={positions} count={JOURNEY_PARTICLE_COUNT} itemSize={3} />
       </bufferGeometry>
       <pointsMaterial size={0.08} color="#915eff" transparent opacity={0.25} sizeAttenuation depthWrite={false} />
     </points>
@@ -351,7 +353,7 @@ function RealmBuilderCity({ active }) {
           {[...Array(Math.floor(b.h / 0.8))].map((_, row) => (
             <React.Fragment key={`win-${row}`}>
               <mesh position={[b.w / 2 + 0.01, -b.h / 2 + 0.6 + row * 0.8, 0]}>
-                <planeGeometry args={[0.01, 0.3, 0.4]} />
+                <planeGeometry args={[0.01, 0.3]} />
                 <meshStandardMaterial color={b.color} emissive={b.color} emissiveIntensity={1.2} />
               </mesh>
               <mesh position={[0, -b.h / 2 + 0.6 + row * 0.8, b.w / 2 + 0.01]}>
@@ -564,7 +566,12 @@ function RealmFutureVision({ active }) {
   const spireRef = useRef();
   useFrame((s) => {
     if (!spireRef.current || !active) return;
-    spireRef.current.children[1].material.emissiveIntensity = 0.8 + Math.sin(s.clock.elapsedTime * 2) * 0.4;
+    if (spireRef.current.children && spireRef.current.children.length >= 2) {
+      const beacon = spireRef.current.children[1];
+      if (beacon && beacon.material) {
+        beacon.material.emissiveIntensity = 0.8 + Math.sin(s.clock.elapsedTime * 2) * 0.4;
+      }
+    }
   });
 
   const towers = useMemo(() => {
@@ -602,7 +609,7 @@ function RealmFutureVision({ active }) {
           {/* Window strips */}
           {[...Array(Math.floor(t.h / 0.6))].map((_, row) => (
             <mesh key={`tw-${row}`} position={[t.w / 2 + 0.01, -t.h / 2 + 0.4 + row * 0.6, 0]}>
-              <planeGeometry args={[0.01, 0.15, 0.3]} />
+              <planeGeometry args={[0.01, 0.15]} />
               <meshStandardMaterial color="#915eff" emissive="#915eff" emissiveIntensity={0.8 + Math.random() * 0.5} />
             </mesh>
           ))}
@@ -745,17 +752,17 @@ function CertViewer({ cert, onClose }) {
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
-          <div className="flex items-center justify-between bg-tertiary/90 backdrop-blur-lg rounded-t-2xl px-5 py-3 border border-white/5 border-b-0">
-            <div className="min-w-0">
-              <h3 className="text-white font-bold text-[16px] truncate">{cert.title}</h3>
-              <p className="text-secondary text-[12px] truncate">{cert.organization}{cert.subtitle ? ` — ${cert.subtitle}` : ""}</p>
+          <div className="flex items-center justify-between bg-tertiary/90 backdrop-blur-lg rounded-t-2xl px-4 py-3.5 sm:px-5 sm:py-3 border border-white/5 border-b-0">
+            <div className="min-w-0 pr-2">
+              <h3 className="text-white font-bold text-[15px] sm:text-[16px] truncate">{cert.title}</h3>
+              <p className="text-secondary text-[11px] sm:text-[12px] truncate mt-0.5">{cert.organization}{cert.subtitle ? ` — ${cert.subtitle}` : ""}</p>
             </div>
             <div className="flex gap-2 ml-4 flex-shrink-0">
-              <a href={cert.file} target="_blank" rel="noopener noreferrer" className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-white hover:bg-white/10 transition-colors cursor-pointer" aria-label="Full resolution">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg>
+              <a href={cert.file} target="_blank" rel="noopener noreferrer" className="w-11 h-11 sm:w-8 sm:h-8 rounded-xl sm:rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-white hover:bg-white/10 transition-colors cursor-pointer" aria-label="Full resolution">
+                <svg className="w-5 h-5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg>
               </a>
-              <button onClick={onClose} className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-white hover:bg-red-500/20 transition-colors cursor-pointer" aria-label="Close">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+              <button onClick={onClose} className="w-11 h-11 sm:w-8 sm:h-8 rounded-xl sm:rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-white hover:bg-red-500/20 transition-colors cursor-pointer" aria-label="Close">
+                <svg className="w-5 h-5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
           </div>
@@ -804,12 +811,13 @@ function JourneyHUD({ activeRealm, onRealmChange }) {
       </AnimatePresence>
 
       {/* Navigation dots — right side */}
-      <div className="absolute right-4 top-1/2 -translate-y-1/2 z-10 flex flex-col gap-3">
+      <div className="absolute right-1 sm:right-4 top-1/2 -translate-y-1/2 z-10 flex flex-col gap-1 sm:gap-2">
         {REALMS.map((r, i) => (
           <button
             key={i}
             onClick={() => onRealmChange(i)}
-            className="group relative cursor-pointer"
+            className="group relative cursor-pointer p-2.5 flex items-center justify-center rounded-full"
+            style={{ width: "44px", height: "44px" }}
             aria-label={`Go to ${r.title}`}
           >
             <div
@@ -825,7 +833,7 @@ function JourneyHUD({ activeRealm, onRealmChange }) {
               } : {}}
             />
             {/* Tooltip */}
-            <span className="absolute right-6 top-1/2 -translate-y-1/2 text-[10px] text-white/0 group-hover:text-white/70 font-medium whitespace-nowrap transition-all duration-200 pointer-events-none bg-black/50 px-2 py-0.5 rounded group-hover:opacity-100 opacity-0">
+            <span className="absolute right-10 top-1/2 -translate-y-1/2 text-[10px] text-white/0 group-hover:text-white/70 font-medium whitespace-nowrap transition-all duration-200 pointer-events-none bg-black/50 px-2 py-0.5 rounded group-hover:opacity-100 opacity-0">
               {r.title}
             </span>
           </button>
@@ -858,19 +866,27 @@ function JourneyHUD({ activeRealm, onRealmChange }) {
 const JourneyExperience = () => {
   const [activeRealm, setActiveRealm] = useState(0);
   const [certIndex, setCertIndex] = useState(null);
-  const containerRef = useRef(null);
-  const [isVisible, setIsVisible] = useState(false);
+  const [containerRef, isInView] = useInView({ rootMargin: "350px 0px", threshold: 0.05 });
+  const [hasMountedScene, setHasMountedScene] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const wheelLock = useRef(false);
   const touchStartX = useRef(0);
 
   // Lazy mount
   useEffect(() => {
-    const observer = new IntersectionObserver(
-      ([entry]) => { if (entry.isIntersecting) setIsVisible(true); },
-      { threshold: 0.05 }
-    );
-    if (containerRef.current) observer.observe(containerRef.current);
-    return () => observer.disconnect();
+    if (isInView) setHasMountedScene(true);
+  }, [isInView]);
+
+  useEffect(() => {
+    const checkMobile = () => {
+      const match = window.matchMedia("(max-width: 768px)").matches || 
+                    ('ontouchstart' in window) || 
+                    (navigator.maxTouchPoints > 0);
+      setIsMobile(match);
+    };
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
   const goNext = useCallback(() => {
@@ -883,13 +899,15 @@ const JourneyExperience = () => {
 
   // Keyboard
   useEffect(() => {
+    if (!isInView) return undefined;
+
     const handleKey = (e) => {
       if (e.key === "ArrowRight" || e.key === "d" || e.key === "D") goNext();
       if (e.key === "ArrowLeft" || e.key === "a" || e.key === "A") goPrev();
     };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [goNext, goPrev]);
+  }, [goNext, goPrev, isInView]);
 
   // Mouse wheel (with debounce)
   const handleWheel = useCallback((e) => {
@@ -944,13 +962,14 @@ const JourneyExperience = () => {
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
       >
-        {isVisible && (
+        {hasMountedScene && (
           <>
             <Canvas
               camera={{ position: [10, 6, 10], fov: 55, near: 0.1, far: 200 }}
-              gl={{ antialias: true, alpha: false }}
+              gl={{ antialias: true, alpha: false, powerPreference: "high-performance" }}
               onCreated={({ gl }) => { gl.setClearColor("#050816"); }}
-              dpr={[1, 1.5]}
+              dpr={isMobile ? 1.0 : [1, 1.25]}
+              frameloop={isInView ? "always" : "demand"}
             >
               <Suspense fallback={<CanvasLoader />}>
                 <JourneyScene activeRealm={activeRealm} onCertClick={handleCertClick} />

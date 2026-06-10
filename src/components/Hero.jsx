@@ -1,14 +1,36 @@
-import { useEffect, useRef, useState, useCallback } from "react";
-import { motion } from "framer-motion";
+import { Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { motion, useMotionValue, useTransform } from "framer-motion";
 import { styles } from "../styles";
-import { ComputersCanvas } from "./canvas";
-import { blurToFocusReveal, floatingAnimation } from "../utils/premiumAnimations";
+
+const ComputersCanvas = lazy(() => import("./canvas/Computers"));
 
 const Hero = () => {
   const videoRef = useRef(null);
+  const retryPlayRef = useRef(null);
   const [videoReady, setVideoReady] = useState(false);
   const [videoError, setVideoError] = useState(false);
-  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  const [showComputerScene, setShowComputerScene] = useState(false);
+  const mouseX = useMotionValue(0);
+  const mouseY = useMotionValue(0);
+  const backgroundX = useTransform(mouseX, (value) => value * 20);
+  const backgroundY = useTransform(mouseY, (value) => value * 20);
+  const middleX = useTransform(mouseX, (value) => value * -15);
+  const middleY = useTransform(mouseY, (value) => value * -15);
+  const particleX = useTransform(mouseX, (value) => value * 10);
+  const particleY = useTransform(mouseY, (value) => value * 10);
+  const accentX = useTransform(mouseX, (value) => value * 5);
+  const accentY = useTransform(mouseY, (value) => value * 5);
+
+  const heroParticles = useMemo(() => [0, 1, 2, 3, 4], []);
+
+  const clearRetryListeners = useCallback(() => {
+    const retryPlay = retryPlayRef.current;
+    if (!retryPlay) return;
+    document.removeEventListener("click", retryPlay);
+    document.removeEventListener("touchstart", retryPlay);
+    document.removeEventListener("scroll", retryPlay);
+    retryPlayRef.current = null;
+  }, []);
 
   const attemptPlay = useCallback(() => {
     const video = videoRef.current;
@@ -18,15 +40,15 @@ const Hero = () => {
       // Retry play on user interaction
       const retryPlay = () => {
         video.play().catch(() => {});
-        document.removeEventListener("click", retryPlay);
-        document.removeEventListener("touchstart", retryPlay);
-        document.removeEventListener("scroll", retryPlay);
+        clearRetryListeners();
       };
+      clearRetryListeners();
+      retryPlayRef.current = retryPlay;
       document.addEventListener("click", retryPlay, { once: true });
-      document.addEventListener("touchstart", retryPlay, { once: true });
-      document.addEventListener("scroll", retryPlay, { once: true });
+      document.addEventListener("touchstart", retryPlay, { once: true, passive: true });
+      document.addEventListener("scroll", retryPlay, { once: true, passive: true });
     });
-  }, []);
+  }, [clearRetryListeners]);
 
   useEffect(() => {
     attemptPlay();
@@ -41,21 +63,87 @@ const Hero = () => {
 
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
+      clearRetryListeners();
     };
-  }, [attemptPlay]);
+  }, [attemptPlay, clearRetryListeners]);
 
-  // Track mouse position for parallax depth effect
+  // Pause background video when off-screen to save CPU and GPU processing cycles
   useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return undefined;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            video.play().catch(() => {});
+          } else {
+            video.pause();
+          }
+        });
+      },
+      { threshold: 0.05 }
+    );
+
+    const section = video.closest("section");
+    if (section) {
+      observer.observe(section);
+    }
+
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
+
+
+  useEffect(() => {
+    const scheduleIdle = window.requestIdleCallback || ((callback) => window.setTimeout(callback, 350));
+    const cancelIdle = window.cancelIdleCallback || window.clearTimeout;
+    const idleId = scheduleIdle(() => setShowComputerScene(true));
+
+    return () => cancelIdle(idleId);
+  }, []);
+
+  // Track mouse and touch position for parallax depth effect
+  useEffect(() => {
+    let frameId = null;
+    let latestX = 0;
+    let latestY = 0;
+
     const handleMouseMove = (e) => {
-      setMousePos({
-        x: (e.clientX / window.innerWidth - 0.5) * 2,
-        y: (e.clientY / window.innerHeight - 0.5) * 2,
+      latestX = (e.clientX / window.innerWidth - 0.5) * 2;
+      latestY = (e.clientY / window.innerHeight - 0.5) * 2;
+
+      if (frameId) return;
+      frameId = requestAnimationFrame(() => {
+        mouseX.set(latestX);
+        mouseY.set(latestY);
+        frameId = null;
       });
     };
 
-    window.addEventListener("mousemove", handleMouseMove);
-    return () => window.removeEventListener("mousemove", handleMouseMove);
-  }, []);
+    const handleTouchMove = (e) => {
+      if (e.touches && e.touches[0]) {
+        latestX = (e.touches[0].clientX / window.innerWidth - 0.5) * 2;
+        latestY = (e.touches[0].clientY / window.innerHeight - 0.5) * 2;
+
+        if (frameId) return;
+        frameId = requestAnimationFrame(() => {
+          mouseX.set(latestX);
+          mouseY.set(latestY);
+          frameId = null;
+        });
+      }
+    };
+
+    window.addEventListener("mousemove", handleMouseMove, { passive: true });
+    window.addEventListener("touchmove", handleTouchMove, { passive: true });
+    return () => {
+      if (frameId) cancelAnimationFrame(frameId);
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("touchmove", handleTouchMove);
+    };
+  }, [mouseX, mouseY]);
 
   return (
     <section className="relative w-full h-screen mx-auto overflow-hidden bg-[#030014]" style={{ background: "#030014" }}>
@@ -69,8 +157,8 @@ const Hero = () => {
       <motion.div
         className="absolute inset-0 z-[0.5]"
         style={{
-          x: mousePos.x * 20,
-          y: mousePos.y * 20,
+          x: backgroundX,
+          y: backgroundY,
         }}
         transition={{ type: "spring", stiffness: 100, damping: 20 }}
       >
@@ -86,8 +174,8 @@ const Hero = () => {
       <motion.div
         className="absolute inset-0 z-[0.6]"
         style={{
-          x: mousePos.x * -15,
-          y: mousePos.y * -15,
+          x: middleX,
+          y: middleY,
         }}
         transition={{ type: "spring", stiffness: 100, damping: 20 }}
       >
@@ -107,27 +195,26 @@ const Hero = () => {
         muted
         playsInline
         preload="auto"
-        onCanPlayThrough={() => setVideoReady(true)}
+        onCanPlay={() => setVideoReady(true)}
         onError={() => setVideoError(true)}
-        className="absolute inset-0 w-full h-full object-cover pointer-events-none z-[1]"
+        className="absolute inset-0 w-full h-full object-cover pointer-events-none z-[2]"
         style={{
           opacity: videoReady && !videoError ? 1 : 0,
-          transition: "opacity 1.2s ease-in-out",
+          transition: "opacity 0.8s ease-in-out",
           background: "transparent",
         }}
       >
         <source src="/write_DEBAYUDH_in_better_way_a.mp4" type="video/mp4" />
       </video>
 
-      {/* Animated gradient fallback shown when video fails or hasn't loaded */}
-      {(!videoReady || videoError) && (
-        <div
-          className="absolute inset-0 z-[1] bg-[#030014]"
-          style={{
-            background: "radial-gradient(ellipse at 30% 30%, rgba(145, 94, 255, 0.15) 0%, transparent 60%), radial-gradient(ellipse at 70% 70%, rgba(0, 206, 168, 0.08) 0%, transparent 50%), linear-gradient(180deg, #030014 0%, #050816 100%)",
-          }}
-        />
-      )}
+      {/* Animated gradient fallback - always rendered behind the video to prevent any blank screen flashes */}
+      <div
+        className="absolute inset-0 z-[1] transition-opacity duration-1000"
+        style={{
+          opacity: videoReady && !videoError ? 0.35 : 1,
+          background: "radial-gradient(ellipse at 30% 30%, rgba(145, 94, 255, 0.15) 0%, transparent 60%), radial-gradient(ellipse at 70% 70%, rgba(0, 206, 168, 0.08) 0%, transparent 50%), linear-gradient(180deg, #030014 0%, #050816 100%)",
+        }}
+      />
 
       {/* Contrast & Legibility Gradient Shield Mask */}
       <div
@@ -141,13 +228,13 @@ const Hero = () => {
       <motion.div
         className="absolute inset-0 z-[3] pointer-events-none"
         style={{
-          x: mousePos.x * 10,
-          y: mousePos.y * 10,
+          x: particleX,
+          y: particleY,
         }}
         transition={{ type: "spring", stiffness: 80, damping: 25 }}
       >
         {/* Floating particles */}
-        {[...Array(5)].map((_, i) => (
+        {heroParticles.map((i) => (
           <motion.div
             key={i}
             className="absolute w-1 h-1 rounded-full bg-violet-accent/30"
@@ -178,8 +265,8 @@ const Hero = () => {
           <motion.div
             className='flex flex-col justify-center items-center mt-5'
             style={{
-              x: mousePos.x * 5,
-              y: mousePos.y * 5,
+              x: accentX,
+              y: accentY,
             }}
             transition={{ type: "spring", stiffness: 100, damping: 20 }}
           >
@@ -227,7 +314,11 @@ const Hero = () => {
         </div>
 
         {/* 3D Computer Scene */}
-        <ComputersCanvas />
+        {showComputerScene && (
+          <Suspense fallback={null}>
+            <ComputersCanvas />
+          </Suspense>
+        )}
 
         {/* Scroll indicator with enhanced animations */}
         <motion.div
@@ -260,4 +351,4 @@ const Hero = () => {
   );
 };
 
-export default Hero;
+export default memo(Hero);

@@ -1,9 +1,7 @@
-import React, { useEffect, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { styles } from "../styles";
 import { navLinks } from "../constants";
-import { navbarCompressVariants } from "../utils/premiumAnimations";
 
 /* ─────────── Falling Particle Effect Component ─────────── */
 const HoverParticles = () => (
@@ -23,10 +21,20 @@ const Navbar = () => {
 
   // Monitor scroll for subtle compression
   useEffect(() => {
+    let ticking = false;
     const handleScroll = () => {
-      setScrolled(window.scrollY > 40);
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => {
+        setScrolled((current) => {
+          const next = window.scrollY > 40;
+          return current === next ? current : next;
+        });
+        ticking = false;
+      });
     };
-    window.addEventListener("scroll", handleScroll);
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    handleScroll();
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
@@ -63,8 +71,17 @@ const Navbar = () => {
     return () => clearTimeout(timer);
   }, []);
 
+  // Close mobile dropdown menu on page scroll
+  useEffect(() => {
+    if (!toggle) return undefined;
+    const handleScroll = () => setToggle(false);
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [toggle]);
+
+
   // Framer Motion load animation variants
-  const navbarVariants = {
+  const navbarVariants = useMemo(() => ({
     hidden: { opacity: 0, y: -25, x: "-50%" },
     show: {
       opacity: 1,
@@ -77,16 +94,23 @@ const Navbar = () => {
         delayChildren: 0.15
       }
     }
-  };
+  }), []);
 
-  const childVariants = {
+  const childVariants = useMemo(() => ({
     hidden: { opacity: 0, y: -8 },
     show: {
       opacity: 1,
       y: 0,
       transition: { type: "spring", stiffness: 300, damping: 20 }
     }
-  };
+  }), []);
+
+  const handleLogoClick = useCallback(() => {
+    setActive("");
+    window.lenis?.scrollTo(0, { duration: 1.4 });
+  }, []);
+
+  const toggleMenu = useCallback(() => setToggle((current) => !current), []);
 
   return (
     <>
@@ -142,10 +166,7 @@ const Navbar = () => {
             <Link
               to="/"
               className="flex items-center gap-3"
-              onClick={() => {
-                setActive("");
-                window.lenis?.scrollTo(0, { duration: 1.4 });
-              }}
+              onClick={handleLogoClick}
             >
               {/* Geometric monogram combined D+B symbol */}
               <motion.div
@@ -227,7 +248,7 @@ const Navbar = () => {
             <motion.button
               variants={childVariants}
               className="w-9 h-9 rounded-xl bg-white/5 border border-white/10 flex flex-col justify-center items-center gap-1.5 cursor-pointer hover:bg-white/10"
-              onClick={() => setToggle(!toggle)}
+              onClick={toggleMenu}
               aria-label="Toggle navigation menu"
             >
               <span
@@ -268,31 +289,37 @@ const Navbar = () => {
               animate={{ opacity: 1, height: "auto" }}
               exit={{ opacity: 0, height: 0 }}
               transition={{ duration: 0.25, ease: "easeInOut" }}
-              className="lg:hidden px-6 pb-4 pt-2 border-t border-white/5 mt-2 overflow-hidden"
+              className="lg:hidden px-4 pb-4 pt-2 border-t border-white/5 mt-2 overflow-hidden"
             >
-              <ul className="list-none flex flex-col gap-3">
-                {navLinks.map((nav) => (
-                  <li
-                    key={nav.id}
-                    className={`font-medium cursor-pointer text-[14px] ${
-                      active === nav.title ? "text-white font-bold" : "text-secondary"
-                    } hover:text-white transition-colors`}
-                    onClick={() => {
-                      setToggle(false);
-                      setActive(nav.title);
-                    }}
-                  >
-                    <a href={`#${nav.id}`} className="block w-full py-1">{nav.title}</a>
-                  </li>
-                ))}
+              <ul className="list-none flex flex-col gap-1.5">
+                {navLinks.map((nav) => {
+                  const isActive = active === nav.title;
+                  return (
+                    <li
+                      key={nav.id}
+                      className={`font-semibold cursor-pointer text-[15px] rounded-xl transition-all ${
+                        isActive 
+                          ? "text-white bg-white/5 shadow-inner" 
+                          : "text-secondary hover:text-white hover:bg-white/[0.02]"
+                      }`}
+                      onClick={() => {
+                        setToggle(false);
+                        setActive(nav.title);
+                      }}
+                    >
+                      <a href={`#${nav.id}`} className="block w-full py-2.5 px-4">{nav.title}</a>
+                    </li>
+                  );
+                })}
               </ul>
             </motion.div>
           )}
         </AnimatePresence>
+
 
       </motion.nav>
     </>
   );
 };
 
-export default Navbar;
+export default memo(Navbar);

@@ -1,6 +1,7 @@
-import React, { useRef, useMemo, useState, useEffect, Suspense } from "react";
-import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { memo, useRef, useMemo, useState, useEffect, Suspense } from "react";
+import { Canvas, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
+import { useInView } from "../../hooks/useInView";
 
 // Colors for the terminal nodes on the branches - refined to a premium blue-purple palette
 const TERMINAL_COLORS = [
@@ -29,7 +30,7 @@ const createCircleTexture = () => {
 };
 
 /* ─────────── Single 3D Neuron Model Internals ─────────── */
-const SingleNeuron = ({ activeState }) => {
+const SingleNeuron = ({ activeState, active }) => {
   const groupRef = useRef();
   const nucleusRef = useRef();
   const nucleusHaloRef = useRef();
@@ -45,12 +46,30 @@ const SingleNeuron = ({ activeState }) => {
   const targetRotation = useRef({ x: 0, y: 0 });
   const globalMouse = useRef({ x: 0, y: 0 });
   const hoverProgress = useRef(0);
+  const dummy = useMemo(() => new THREE.Object3D(), []);
+  const color = useMemo(() => new THREE.Color(), []);
 
   // Generate glowing star texture once
   const starTexture = useMemo(() => createCircleTexture(), []);
+  const pulseGeom = useMemo(() => new THREE.SphereGeometry(1, 8, 8), []);
+  const pulseMat = useMemo(() => new THREE.MeshBasicMaterial({
+    transparent: true,
+    opacity: 0.9,
+    blending: THREE.AdditiveBlending,
+  }), []);
+
+  useEffect(() => {
+    return () => {
+      starTexture.dispose();
+      pulseGeom.dispose();
+      pulseMat.dispose();
+    };
+  }, [starTexture, pulseGeom, pulseMat]);
 
   // Listen to global mouse events to support mouse parallax even when Canvas is pointer-events-none
   useEffect(() => {
+    if (!active) return undefined;
+
     const handleMouseMove = (e) => {
       const x = (e.clientX / window.innerWidth) * 2 - 1;
       const y = -(e.clientY / window.innerHeight) * 2 + 1;
@@ -67,13 +86,13 @@ const SingleNeuron = ({ activeState }) => {
       }
     };
 
-    window.addEventListener("mousemove", handleMouseMove);
-    window.addEventListener("touchmove", handleTouchMove);
+    window.addEventListener("mousemove", handleMouseMove, { passive: true });
+    window.addEventListener("touchmove", handleTouchMove, { passive: true });
     return () => {
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("touchmove", handleTouchMove);
     };
-  }, []);
+  }, [active]);
 
   // 1. Generate background stars split into two sets for independent twinkling
   const starsA = useMemo(() => {
@@ -127,10 +146,14 @@ const SingleNeuron = ({ activeState }) => {
       const points = curve.getPoints(24);
       const geom = new THREE.BufferGeometry().setFromPoints(points);
 
+      // Precompute points along the curve for fast lookup in useFrame (runs 8x per frame)
+      const precomputedPoints = curve.getPoints(100);
+
       list.push({
         geometry: geom,
         endPoint: end,
         curve,
+        precomputedPoints,
         color: TERMINAL_COLORS[i % colorCount],
         pulseProgress: Math.random(),
         pulseSpeed: 0.5 + Math.random() * 0.4
@@ -140,6 +163,8 @@ const SingleNeuron = ({ activeState }) => {
   }, []);
 
   useFrame((state, delta) => {
+    if (!active) return;
+
     const time = state.clock.getElapsedTime();
 
     // A. Parallax Mouse Tracker (global mouse position)
@@ -196,41 +221,53 @@ const SingleNeuron = ({ activeState }) => {
     // F. Update Travelling Impulses along branches (smoothly accelerated and brightened on hover)
     if (!instancedPulsesRef.current) return;
 
-    const dummy = new THREE.Object3D();
-    const color = new THREE.Color();
-
     branches.forEach((branch, i) => {
       // Speed multiplier zooms from 1.0x up to 2.5x based on hover
       const speedMultiplier = 1.0 + hProg * 1.5;
       branch.pulseProgress += delta * branch.pulseSpeed * speedMultiplier;
       
-      // Clamp to safe range [0.001, 0.999] to prevent getPointAt crash at boundaries
-      if (isNaN(branch.pulseProgress) || branch.pulseProgress >= 0.999) {
-        branch.pulseProgress = 0.001;
-      }
-      if (branch.pulseProgress < 0.001) {
-        branch.pulseProgress = 0.001;
+      // Keep inside [0.0, 1.0] dynamically
+      if (isNaN(branch.pulseProgress) || branch.pulseProgress >= 1.0) {
+        branch.pulseProgress = 0.0;
       }
 
-      try {
-        const p = branch.curve.getPointAt(branch.pulseProgress);
-        if (p) {
-          dummy.position.set(p.x, p.y, p.z);
-        }
-      } catch (e) {
-        // Fallback: reset progress on any curve error
-        branch.pulseProgress = 0.1;
-        return;
-      }
-      
+      const pointsLen = branch.precomputedPoints.length;
+
+      // Pulse 1 progress
+      const progress1 = branch.pulseProgress;
+      const idx1 = Math.min(pointsLen - 1, Math.max(0, Math.floor(progress1 * pointsLen)));
+      const p1 = branch.precomputedPoints[idx1];
+
+      // Pulse 2 progress (offset by 0.5 phase)
+      const progress2 = (branch.pulseProgress + 0.5) % 1.0;
+      const idx2 = Math.min(pointsLen - 1, Math.max(0, Math.floor(progress2 * pointsLen)));
+      const p2 = branch.precomputedPoints[idx2];
+
       const pulseSize = 0.035 + hProg * 0.035; // scales from 0.035 to 0.07
-      dummy.scale.set(pulseSize, pulseSize, pulseSize);
-      dummy.updateMatrix();
-      instancedPulsesRef.current.setMatrixAt(i, dummy.matrix);
-
       const brightness = 0.6 + hProg * 1.4; // scales from 0.6 to 2.0
       color.set(branch.color).multiplyScalar(brightness);
-      instancedPulsesRef.current.setColorAt(i, color);
+
+      // Render Pulse 1 (instance index i * 2)
+      if (p1) {
+        dummy.position.set(p1.x, p1.y, p1.z);
+        dummy.scale.set(pulseSize, pulseSize, pulseSize);
+        dummy.updateMatrix();
+        instancedPulsesRef.current.setMatrixAt(i * 2, dummy.matrix);
+        instancedPulsesRef.current.setColorAt(i * 2, color);
+      }
+
+      // Render Pulse 2 (instance index i * 2 + 1)
+      if (p2) {
+        dummy.position.set(p2.x, p2.y, p2.z);
+        const pulseSize2 = pulseSize * 0.72; // slightly smaller secondary pulse
+        dummy.scale.set(pulseSize2, pulseSize2, pulseSize2);
+        dummy.updateMatrix();
+        instancedPulsesRef.current.setMatrixAt(i * 2 + 1, dummy.matrix);
+        
+        // Secondary pulse has slightly lower brightness for dynamics
+        const color2 = color.clone().multiplyScalar(0.7);
+        instancedPulsesRef.current.setColorAt(i * 2 + 1, color2);
+      }
     });
 
     instancedPulsesRef.current.instanceMatrix.needsUpdate = true;
@@ -340,7 +377,7 @@ const SingleNeuron = ({ activeState }) => {
             <lineBasicMaterial
               color={branch.color}
               transparent
-              opacity={activeState ? 0.12 : 0.05}
+              opacity={activeState ? 0.35 : 0.16}
               blending={THREE.AdditiveBlending}
             />
           </line>
@@ -351,7 +388,7 @@ const SingleNeuron = ({ activeState }) => {
             <meshBasicMaterial
               color={branch.color}
               transparent
-              opacity={activeState ? 0.25 : 0.08}
+              opacity={activeState ? 0.65 : 0.22}
               blending={THREE.AdditiveBlending}
             />
           </mesh>
@@ -361,11 +398,8 @@ const SingleNeuron = ({ activeState }) => {
       {/* 6. Instanced traveling impulses */}
       <instancedMesh
         ref={instancedPulsesRef}
-        args={[null, null, branchCount]}
-      >
-        <sphereGeometry args={[1, 8, 8]} />
-        <meshBasicMaterial transparent opacity={0.3} blending={THREE.AdditiveBlending} />
-      </instancedMesh>
+        args={[pulseGeom, pulseMat, branchCount * 2]}
+      />
 
     </group>
   );
@@ -374,6 +408,20 @@ const SingleNeuron = ({ activeState }) => {
 /* ─────────── 3D Network Canvas Container ─────────── */
 const NeuralNetworkCanvas = () => {
   const [activeState, setActiveState] = useState(null);
+  const [containerRef, isInView] = useInView({ rootMargin: "300px 0px" });
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => {
+      const match = window.matchMedia("(max-width: 768px)").matches || 
+                    ('ontouchstart' in window) || 
+                    (navigator.maxTouchPoints > 0);
+      setIsMobile(match);
+    };
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
 
   useEffect(() => {
     const handleHover = (e) => {
@@ -388,18 +436,19 @@ const NeuralNetworkCanvas = () => {
   }, []);
 
   return (
-    <div className="w-full h-full min-h-[500px]">
+    <div ref={containerRef} className="w-full h-full min-h-[500px]">
       <Canvas
         camera={{ position: [0, 0, 6], fov: 60 }}
-        dpr={[1, 1.5]}
-        gl={{ antialias: true, alpha: true }}
+        dpr={isMobile ? 1.0 : [1, 1.5]}
+        frameloop={isInView ? "always" : "demand"}
+        gl={{ antialias: true, alpha: true, powerPreference: "high-performance" }}
       >
         <Suspense fallback={null}>
-          <SingleNeuron activeState={activeState} />
+          <SingleNeuron activeState={activeState} active={isInView} />
         </Suspense>
       </Canvas>
     </div>
   );
 };
 
-export default NeuralNetworkCanvas;
+export default memo(NeuralNetworkCanvas);

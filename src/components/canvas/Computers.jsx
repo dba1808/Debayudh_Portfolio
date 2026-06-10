@@ -1,9 +1,28 @@
-import React, { Suspense, useEffect, useState } from "react";
-import { Canvas } from "@react-three/fiber";
+import { memo, Suspense, useEffect, useState, useRef } from "react";
+import { Canvas, useFrame } from "@react-three/fiber";
 import { OrbitControls, Preload } from "@react-three/drei";
 import CanvasLoader from "../Loader";
 
-const Computers = ({ isMobile }) => {
+const Computers = memo(({ isMobile }) => {
+  const groupRef = useRef();
+
+  useFrame((state) => {
+    if (!groupRef.current) return;
+    const time = state.clock.getElapsedTime();
+    
+    // Premium breathing animation
+    groupRef.current.rotation.y = Math.sin(time * 0.35) * 0.04 + 0.15;
+    groupRef.current.rotation.x = Math.cos(time * 0.35) * 0.02 - 0.1;
+
+    // Dynamic scroll tilt
+    if (typeof window !== "undefined") {
+      const scrollY = window.scrollY || document.documentElement.scrollTop;
+      const maxTilt = 0.22;
+      const tilt = Math.min(maxTilt, scrollY * 0.00035);
+      groupRef.current.rotation.x -= tilt;
+    }
+  });
+
   // Since we don't have a real GLTF model, create a stylized computer from primitives
   return (
     <mesh>
@@ -19,7 +38,7 @@ const Computers = ({ isMobile }) => {
       <pointLight intensity={1} />
       
       {/* Monitor */}
-      <group position={[0, isMobile ? -1.5 : -2.25, 0]} scale={isMobile ? 0.5 : 0.65}>
+      <group ref={groupRef} position={[0, isMobile ? -1.5 : -2.25, 0]} scale={isMobile ? 0.5 : 0.65}>
         {/* Monitor Screen */}
         <mesh position={[0, 2.8, 0]} castShadow receiveShadow>
           <boxGeometry args={[4.5, 2.8, 0.15]} />
@@ -87,14 +106,15 @@ const Computers = ({ isMobile }) => {
       </group>
     </mesh>
   );
-};
+});
 
 const ComputersCanvas = () => {
-  const [isMobile, setIsMobile] = useState(false);
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== "undefined" ? window.matchMedia("(max-width: 500px)").matches : false
+  );
 
   useEffect(() => {
     const mediaQuery = window.matchMedia("(max-width: 500px)");
-    setIsMobile(mediaQuery.matches);
     const handleMediaQueryChange = (event) => {
       setIsMobile(event.matches);
     };
@@ -106,14 +126,15 @@ const ComputersCanvas = () => {
 
   return (
     <Canvas
-      frameloop='always'
-      shadows
-      dpr={[1, 1.5]}
+      frameloop='demand'
+      shadows={!isMobile}
+      dpr={isMobile ? 1.0 : [1, 1.5]}
       camera={{ position: [20, 3, 5], fov: 25 }}
-      gl={{ preserveDrawingBuffer: true, alpha: true, antialias: true }}
+      gl={{ alpha: true, antialias: true, powerPreference: "high-performance" }}
       onCreated={({ gl }) => {
         gl.setClearColor(0x000000, 0);
       }}
+      className="w-full h-full absolute inset-0 pointer-events-none sm:pointer-events-auto"
       style={{ background: "transparent" }}
     >
       <Suspense fallback={<CanvasLoader />}>
@@ -129,4 +150,4 @@ const ComputersCanvas = () => {
   );
 };
 
-export default ComputersCanvas;
+export default memo(ComputersCanvas);

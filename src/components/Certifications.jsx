@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import { memo, useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { styles } from "../styles";
 import { certifications } from "../constants";
@@ -6,7 +6,7 @@ import { SectionWrapper } from "../hoc";
 import { textVariant, fadeIn, staggerFadeIn } from "../utils/motion";
 
 /* ─────────── Certificate Achievement Card ─────────── */
-const CertificateCard = ({ cert, index, onClick }) => {
+const CertificateCard = memo(({ cert, index, onClick }) => {
   return (
     <motion.div
       variants={staggerFadeIn}
@@ -95,16 +95,25 @@ const CertificateCard = ({ cert, index, onClick }) => {
       </div>
     </motion.div>
   );
-};
+});
 
 /* ─────────── Book-Opening Certificate Modal ─────────── */
-const CertificateModal = ({ cert, isOpen, onClose, onNext, onPrev, currentIndex, total }) => {
+const CertificateModal = memo(({ cert, isOpen, onClose, onNext, onPrev, currentIndex, total }) => {
   const [zoom, setZoom] = useState(1);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const dragStartRef = useRef({ x: 0, y: 0 });
   const posStartRef = useRef({ x: 0, y: 0 });
   const contentRef = useRef(null);
+  const [isMobileModal, setIsMobileModal] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const checkMobile = () => setIsMobileModal(window.innerWidth < 640);
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
 
   // Reset state when cert changes
   useEffect(() => {
@@ -165,14 +174,14 @@ const CertificateModal = ({ cert, isOpen, onClose, onNext, onPrev, currentIndex,
   }, []);
 
   // Drag to pan
-  const handlePointerDown = (e) => {
+  const handlePointerDown = useCallback((e) => {
     if (zoom <= 1) return;
     setIsDragging(true);
     dragStartRef.current = { x: e.clientX, y: e.clientY };
     posStartRef.current = { ...position };
-  };
+  }, [position, zoom]);
 
-  const handlePointerMove = (e) => {
+  const handlePointerMove = useCallback((e) => {
     if (!isDragging) return;
     const dx = e.clientX - dragStartRef.current.x;
     const dy = e.clientY - dragStartRef.current.y;
@@ -180,11 +189,11 @@ const CertificateModal = ({ cert, isOpen, onClose, onNext, onPrev, currentIndex,
       x: posStartRef.current.x + dx,
       y: posStartRef.current.y + dy,
     });
-  };
+  }, [isDragging]);
 
-  const handlePointerUp = () => {
+  const handlePointerUp = useCallback(() => {
     setIsDragging(false);
-  };
+  }, []);
 
   if (!cert) return null;
 
@@ -235,58 +244,63 @@ const CertificateModal = ({ cert, isOpen, onClose, onNext, onPrev, currentIndex,
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header bar */}
-            <div className="flex items-center justify-between bg-tertiary/90 backdrop-blur-lg rounded-t-2xl px-5 py-4 border border-white/5 border-b-0">
-              <div className="flex-1 min-w-0">
-                <h3 className="text-white font-bold text-[18px] truncate">
+            <div className="flex items-center justify-between bg-tertiary/90 backdrop-blur-lg rounded-t-2xl px-4 py-3.5 sm:px-5 sm:py-4 border border-white/5 border-b-0">
+              <div className="flex-1 min-w-0 pr-2">
+                <h3 className="text-white font-bold text-[16px] sm:text-[18px] truncate">
                   {cert.title}
                 </h3>
-                <p className="text-secondary text-[13px] truncate">
+                <p className="text-secondary text-[12px] sm:text-[13px] truncate mt-0.5">
                   {cert.organization}
                   {cert.subtitle ? ` — ${cert.subtitle}` : ""}
                 </p>
               </div>
 
-              <div className="flex items-center gap-2 ml-4 flex-shrink-0">
-                {/* Zoom controls */}
-                <button
-                  onClick={() => setZoom((z) => Math.max(z - 0.25, 0.5))}
-                  className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-white hover:bg-white/10 transition-colors text-[16px] cursor-pointer"
-                  aria-label="Zoom out"
-                >
-                  −
-                </button>
-                <span className="text-secondary text-[13px] font-mono min-w-[45px] text-center">
-                  {Math.round(zoom * 100)}%
-                </span>
-                <button
-                  onClick={() => setZoom((z) => Math.min(z + 0.25, 3))}
-                  className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-white hover:bg-white/10 transition-colors text-[16px] cursor-pointer"
-                  aria-label="Zoom in"
-                >
-                  +
-                </button>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {/* Desktop-only controls in header */}
+                {!isMobileModal && (
+                  <>
+                    {/* Zoom controls */}
+                    <button
+                      onClick={() => setZoom((z) => Math.max(z - 0.25, 0.5))}
+                      className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-white hover:bg-white/10 transition-colors text-[16px] cursor-pointer"
+                      aria-label="Zoom out"
+                    >
+                      −
+                    </button>
+                    <span className="text-secondary text-[13px] font-mono min-w-[45px] text-center">
+                      {Math.round(zoom * 100)}%
+                    </span>
+                    <button
+                      onClick={() => setZoom((z) => Math.min(z + 0.25, 3))}
+                      className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-white hover:bg-white/10 transition-colors text-[16px] cursor-pointer"
+                      aria-label="Zoom in"
+                    >
+                      +
+                    </button>
 
-                {/* Full resolution */}
-                <a
-                  href={cert.file}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-white hover:bg-white/10 transition-colors cursor-pointer"
-                  aria-label="Open full resolution"
-                  title="Open full resolution"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
-                  </svg>
-                </a>
+                    {/* Full resolution */}
+                    <a
+                      href={cert.file}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-white hover:bg-white/10 transition-colors cursor-pointer"
+                      aria-label="Open full resolution"
+                      title="Open full resolution"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+                      </svg>
+                    </a>
+                  </>
+                )}
 
-                {/* Close */}
+                {/* Close (Large touch target on mobile) */}
                 <button
                   onClick={onClose}
-                  className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-white hover:bg-red-500/20 hover:border-red-500/30 transition-colors cursor-pointer"
+                  className="w-11 h-11 sm:w-8 sm:h-8 rounded-xl sm:rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-white hover:bg-red-500/20 hover:border-red-500/30 transition-colors cursor-pointer"
                   aria-label="Close"
                 >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <svg className="w-5 h-5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
@@ -296,7 +310,7 @@ const CertificateModal = ({ cert, isOpen, onClose, onNext, onPrev, currentIndex,
             {/* Certificate view */}
             <div
               ref={contentRef}
-              className="flex-1 overflow-hidden bg-[#0a0820] border border-white/5 border-t-0 rounded-b-2xl relative"
+              className={`flex-1 overflow-hidden bg-[#0a0820] border border-white/5 border-t-0 relative ${isMobileModal ? "" : "rounded-b-2xl"}`}
               onWheel={handleWheel}
               onPointerDown={handlePointerDown}
               onPointerMove={handlePointerMove}
@@ -308,7 +322,7 @@ const CertificateModal = ({ cert, isOpen, onClose, onNext, onPrev, currentIndex,
               }}
             >
               <div
-                className="w-full h-full flex items-center justify-center min-h-[50vh] sm:min-h-[60vh]"
+                className="w-full h-full flex items-center justify-center min-h-[45vh] sm:min-h-[60vh]"
                 style={{
                   transform: `scale(${zoom}) translate(${position.x / zoom}px, ${position.y / zoom}px)`,
                   transition: isDragging ? "none" : "transform 0.3s cubic-bezier(0.22, 1, 0.36, 1)",
@@ -318,22 +332,87 @@ const CertificateModal = ({ cert, isOpen, onClose, onNext, onPrev, currentIndex,
                   <img
                     src={cert.file}
                     alt={cert.title}
-                    className="max-w-full max-h-[75vh] object-contain select-none"
+                    className="max-w-full max-h-[68vh] sm:max-h-[75vh] object-contain select-none"
                     draggable={false}
                   />
                 ) : (
                   <iframe
                     src={`${cert.file}#toolbar=0&navpanes=0&scrollbar=0`}
                     title={cert.title}
-                    className="w-full h-full min-h-[50vh] sm:min-h-[60vh]"
+                    className="w-full h-full min-h-[45vh] sm:min-h-[60vh]"
                     style={{ border: "none" }}
                   />
                 )}
               </div>
             </div>
 
-            {/* Navigation */}
-            {total > 1 && (
+            {/* Mobile Bottom Toolbar (Zoom + Ext Link + Nav) */}
+            {isMobileModal && (
+              <div className="flex flex-col gap-3 bg-tertiary/95 backdrop-blur-lg rounded-b-2xl p-4 border border-white/5 border-t-0 z-20">
+                <div className="flex items-center justify-center gap-4">
+                  <button
+                    onClick={() => setZoom((z) => Math.max(z - 0.25, 0.5))}
+                    className="w-11 h-11 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white hover:bg-white/10 text-[20px] font-bold cursor-pointer"
+                    aria-label="Zoom out"
+                  >
+                    −
+                  </button>
+                  <span className="text-secondary text-[14px] font-mono min-w-[50px] text-center">
+                    {Math.round(zoom * 100)}%
+                  </span>
+                  <button
+                    onClick={() => setZoom((z) => Math.min(z + 0.25, 3))}
+                    className="w-11 h-11 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white hover:bg-white/10 text-[20px] font-bold cursor-pointer"
+                    aria-label="Zoom in"
+                  >
+                    +
+                  </button>
+
+                  <div className="w-px h-6 bg-white/10 mx-1" />
+
+                  <a
+                    href={cert.file}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-11 h-11 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white hover:bg-white/10 transition-colors cursor-pointer"
+                    aria-label="Open full resolution"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+                    </svg>
+                  </a>
+                </div>
+
+                {total > 1 && (
+                  <div className="flex items-center justify-center gap-5 border-t border-white/5 pt-3">
+                    <button
+                      onClick={onPrev}
+                      className="w-11 h-11 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white hover:bg-violet-accent/20 hover:border-violet-accent/30 transition-all cursor-pointer"
+                      aria-label="Previous certificate"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+                      </svg>
+                    </button>
+                    <span className="text-secondary text-[14px] font-bold font-mono">
+                      {currentIndex + 1} / {total}
+                    </span>
+                    <button
+                      onClick={onNext}
+                      className="w-11 h-11 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white hover:bg-violet-accent/20 hover:border-violet-accent/30 transition-all cursor-pointer"
+                      aria-label="Next certificate"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                      </svg>
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Desktop-only navigation below panel */}
+            {!isMobileModal && total > 1 && (
               <div className="flex items-center justify-center gap-4 mt-4">
                 <button
                   onClick={onPrev}
@@ -363,28 +442,28 @@ const CertificateModal = ({ cert, isOpen, onClose, onNext, onPrev, currentIndex,
       )}
     </AnimatePresence>
   );
-};
+});
 
 /* ─────────── Certifications Section ─────────── */
 const Certifications = () => {
   const [selectedIndex, setSelectedIndex] = useState(null);
 
-  const openCert = (index) => setSelectedIndex(index);
-  const closeCert = () => setSelectedIndex(null);
+  const openCert = useCallback((index) => setSelectedIndex(index), []);
+  const closeCert = useCallback(() => setSelectedIndex(null), []);
 
-  const goNext = () => {
+  const goNext = useCallback(() => {
     setSelectedIndex((prev) =>
       prev !== null ? (prev + 1) % certifications.length : null
     );
-  };
+  }, []);
 
-  const goPrev = () => {
+  const goPrev = useCallback(() => {
     setSelectedIndex((prev) =>
       prev !== null
         ? (prev - 1 + certifications.length) % certifications.length
         : null
     );
-  };
+  }, []);
 
   return (
     <>
@@ -395,22 +474,23 @@ const Certifications = () => {
 
       <motion.p
         variants={fadeIn("", "", 0.1, 1)}
-        className="mt-4 text-secondary text-[17px] max-w-3xl leading-[30px] mb-12"
+        className="mt-2 sm:mt-4 text-secondary text-[17px] max-w-3xl leading-[30px] mb-6 sm:mb-12"
       >
         Certificates earned through training programmes, university
         collaborations, and competitive AI events. Click any certificate to
         view it in full resolution.
       </motion.p>
 
-      {/* Certificate grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      {/* Certificate grid (snapping swipeable list on mobile) */}
+      <div className="flex overflow-x-auto gap-4 pb-6 snap-x snap-mandatory scroll-smooth -mx-4 px-4 sm:mx-0 sm:px-0 sm:grid sm:grid-cols-2 lg:grid-cols-4 sm:gap-6 sm:overflow-visible scrollbar-none">
         {certifications.map((cert, index) => (
-          <CertificateCard
-            key={`cert-${index}`}
-            cert={cert}
-            index={index}
-            onClick={openCert}
-          />
+          <div key={`cert-${index}`} className="min-w-[280px] xs:min-w-[320px] sm:min-w-0 snap-center flex-1">
+            <CertificateCard
+              cert={cert}
+              index={index}
+              onClick={openCert}
+            />
+          </div>
         ))}
       </div>
 
@@ -428,4 +508,4 @@ const Certifications = () => {
   );
 };
 
-export default SectionWrapper(Certifications, "certifications");
+export default SectionWrapper(memo(Certifications), "certifications");

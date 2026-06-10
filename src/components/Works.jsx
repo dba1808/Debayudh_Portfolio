@@ -1,43 +1,89 @@
-import React, { useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { styles } from "../styles";
 import { SectionWrapper } from "../hoc";
 import { projects } from "../constants";
 import { fadeIn, textVariant } from "../utils/motion";
 import DeveloperHoldCard from "./DeveloperHoldCard";
-import { cardDepthVariants } from "../utils/premiumAnimations";
 
 /* ─────────────── 3D Book-Fold Project Card ─────────────── */
-const BookCard = ({ index, name, description, detailed_description, features, tags, image, source_code_link, live_demo_link }) => {
+const BookCard = memo(({ index, name, description, detailed_description, features, tags, image, source_code_link, live_demo_link }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  const [isTouchDevice, setIsTouchDevice] = useState(false);
+  const cardRef = useRef(null);
+  const frameRef = useRef(null);
+  const lastPointerRef = useRef({ x: 50, y: 50 });
 
-  const toggleOpen = () => setIsOpen((prev) => !prev);
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setIsTouchDevice(window.matchMedia("(pointer: coarse)").matches);
+    }
+  }, []);
 
-  const handleMouseMove = (e) => {
+  const handleMouseMove = useCallback((e) => {
+    if (isTouchDevice) return;
     const rect = e.currentTarget.getBoundingClientRect();
-    setMousePos({
-      x: (e.clientX - rect.left) / rect.width,
-      y: (e.clientY - rect.top) / rect.height,
+    lastPointerRef.current = {
+      x: ((e.clientX - rect.left) / rect.width) * 100,
+      y: ((e.clientY - rect.top) / rect.height) * 100,
+    };
+
+    if (frameRef.current) return;
+    frameRef.current = requestAnimationFrame(() => {
+      if (cardRef.current) {
+        cardRef.current.style.setProperty("--glow-x", `${lastPointerRef.current.x}%`);
+        cardRef.current.style.setProperty("--glow-y", `${lastPointerRef.current.y}%`);
+      }
+      frameRef.current = null;
     });
-  };
+  }, [isTouchDevice]);
+
+  const handleMouseEnter = useCallback(() => {
+    if (!isTouchDevice) {
+      setIsOpen(true);
+    }
+  }, [isTouchDevice]);
+
+  const handleMouseLeave = useCallback(() => {
+    if (!isTouchDevice) {
+      setIsOpen(false);
+      if (frameRef.current) {
+        cancelAnimationFrame(frameRef.current);
+        frameRef.current = null;
+      }
+      if (cardRef.current) {
+        cardRef.current.style.setProperty("--glow-x", "50%");
+        cardRef.current.style.setProperty("--glow-y", "50%");
+      }
+    }
+  }, [isTouchDevice]);
+
+  const handleContainerClick = useCallback((e) => {
+    if (!isTouchDevice) return;
+
+    // Do not toggle closed if clicking direct action buttons
+    if (e.target.closest("a, button, [role='button']")) {
+      return;
+    }
+
+    setIsOpen((prev) => !prev);
+  }, [isTouchDevice]);
 
   return (
     <motion.div
+      ref={cardRef}
       variants={fadeIn("up", "spring", index * 0.5, 0.75)}
-      className="book-card-wrapper group"
+      className="book-card-wrapper group relative"
       onMouseMove={handleMouseMove}
-      onMouseEnter={() => setIsOpen(true)}
-      onMouseLeave={() => {
-        setIsOpen(false);
-        setMousePos({ x: 0.5, y: 0.5 });
-      }}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+      onClick={handleContainerClick}
     >
       {/* Dynamic glow effect following cursor */}
       <motion.div
         className="absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-300"
         style={{
-          background: `radial-gradient(circle at ${mousePos.x * 100}% ${mousePos.y * 100}%, rgba(145, 94, 255, 0.15) 0%, transparent 50%)`,
+          background: "radial-gradient(circle at var(--glow-x, 50%) var(--glow-y, 50%), rgba(145, 94, 255, 0.15) 0%, transparent 50%)",
           filter: "blur(40px)",
         }}
         animate={{
@@ -68,21 +114,33 @@ const BookCard = ({ index, name, description, detailed_description, features, ta
             >
               {image}
             </motion.div>
-            <div>
-              <h3 className="text-white font-extrabold text-[18px] leading-tight">
+            <div className="flex-1 min-w-0">
+              <h3 className="text-white font-extrabold text-[17px] leading-tight truncate">
                 {name}
               </h3>
-              <div className="flex gap-1.5 mt-1">
+              <div className="flex flex-wrap gap-1 mt-1">
                 {tags.map((tag) => (
                   <span
                     key={tag.name}
-                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/5 border border-white/5 ${tag.color}`}
+                    className={`text-[9px] font-bold px-2 py-0.5 rounded-full bg-white/5 border border-white/5 ${tag.color}`}
                   >
                     #{tag.name}
                   </span>
                 ))}
               </div>
             </div>
+            {isTouchDevice && (
+              <button
+                className="w-10 h-10 rounded-xl bg-white/10 border border-white/10 flex items-center justify-center text-white/80 hover:text-white cursor-pointer ml-auto flex-shrink-0 text-[14px] font-bold"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsOpen(false);
+                }}
+                aria-label="Close details"
+              >
+                ✕
+              </button>
+            )}
           </div>
 
           {/* Detailed description */}
@@ -196,7 +254,7 @@ const BookCard = ({ index, name, description, detailed_description, features, ta
               transition={{ duration: 0.3 }}
             />
 
-            {/* Top: icon + github */}
+            {/* Top: icon */}
             <div className="flex justify-between items-start">
               <motion.div
                 className="w-full h-[160px] rounded-xl bg-gradient-to-br from-[#1d1836] to-[#0a0a1a] flex items-center justify-center relative overflow-hidden group"
@@ -248,7 +306,7 @@ const BookCard = ({ index, name, description, detailed_description, features, ta
                 ))}
               </div>
               <div className="flex items-center gap-1.5 text-violet-accent text-xs font-bold">
-                <span>Open Details</span>
+                <span>{isTouchDevice ? "Tap to Open Details" : "Open Details"}</span>
                 <span className="transition-transform group-hover:translate-x-1">➔</span>
               </div>
             </div>
@@ -257,7 +315,7 @@ const BookCard = ({ index, name, description, detailed_description, features, ta
       </motion.div>
     </motion.div>
   );
-};
+});
 
 /* ─────────────── Works Section ─────────────── */
 const Works = () => {
@@ -276,12 +334,12 @@ const Works = () => {
           className='mt-3 text-secondary text-[17px] max-w-3xl leading-[30px]'
         >
           Following projects showcase my skills and experience through
-          real-world examples of my work. Hover over any project card to reveal
+          real-world examples of my work. Click or hover over any project card to reveal
           a 3D fold-out with full details, features, and deployment links.
         </motion.p>
       </div>
 
-      <div className='mt-20 flex flex-wrap gap-7'>
+      <div className='mt-10 sm:mt-20 flex flex-wrap gap-7 justify-center'>
         {hasProjects ? (
           projects.map((project, index) => (
             <BookCard
@@ -298,4 +356,4 @@ const Works = () => {
   );
 };
 
-export default SectionWrapper(Works, "projects");
+export default SectionWrapper(memo(Works), "projects");

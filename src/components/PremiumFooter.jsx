@@ -66,14 +66,14 @@ const PremiumFooter = () => {
             Connect
           </h3>
           
-          <div className="space-y-4 mb-16">
+          <div className="flex flex-col items-center gap-1.5 mb-16">
             {connections.map((connection, i) => (
               <motion.a
                 key={i}
                 href={connection.url}
                 target={connection.url.startsWith('http') ? "_blank" : "_self"}
                 rel={connection.url.startsWith('http') ? "noopener noreferrer" : ""}
-                className="group inline-flex items-center gap-3 text-secondary hover:text-white transition-colors duration-300"
+                className="group inline-flex items-center gap-3 text-secondary hover:text-white transition-colors duration-300 py-2.5 px-4 rounded-xl hover:bg-white/5"
                 initial={{ opacity: 0, x: -10 }}
                 whileInView={{ opacity: 1, x: 0 }}
                 viewport={{ once: true }}

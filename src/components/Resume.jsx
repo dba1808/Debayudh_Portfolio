@@ -210,8 +210,11 @@ const JourneyTimeline = () => {
   );
 };
 
+const IS_RESUME_UPLOADED = false; // Set to true when the resume PDF is ready
+
 const Resume = () => {
   const [activeTab, setActiveTab] = useState("skills");
+  const [showToast, setShowToast] = useState(false);
 
   React.useEffect(() => {
     const handleTabEvent = (e) => {
@@ -222,6 +225,16 @@ const Resume = () => {
     window.addEventListener("set-resume-tab", handleTabEvent);
     return () => window.removeEventListener("set-resume-tab", handleTabEvent);
   }, []);
+
+  const handleDownloadClick = (e) => {
+    if (!IS_RESUME_UPLOADED) {
+      e.preventDefault();
+      setShowToast(true);
+      setTimeout(() => {
+        setShowToast(false);
+      }, 3000);
+    }
+  };
 
   const tabs = [
     { id: "skills", label: "Core Skills" },
@@ -289,7 +302,7 @@ const Resume = () => {
         <h2 className={styles.sectionHeadText}>Resume.</h2>
       </motion.div>
 
-      <div className="w-full flex flex-col md:flex-row md:items-center justify-between gap-6 mt-4 mb-10">
+      <div className="w-full flex flex-col md:flex-row items-center justify-between gap-6 mt-4 mb-10 text-center md:text-left">
         <motion.p
           variants={fadeIn("", "", 0.1, 1)}
           className="text-secondary text-[17px] max-w-3xl leading-[30px]"
@@ -301,8 +314,9 @@ const Resume = () => {
 
         <motion.a
           variants={fadeIn("left", "spring", 0.2, 0.75)}
-          href="/debayudh_resume.pdf"
-          download="Debayudh_Bhattacharya_Resume.pdf"
+          href={IS_RESUME_UPLOADED ? "/debayudh_resume.pdf" : "#"}
+          download={IS_RESUME_UPLOADED ? "Debayudh_Bhattacharya_Resume.pdf" : undefined}
+          onClick={handleDownloadClick}
           className="bg-gradient-to-r from-violet-accent to-indigo-600 hover:from-violet-accent hover:to-indigo-700 text-white font-bold py-3 px-6 rounded-xl shadow-lg hover:shadow-violet-accent/30 transition-all flex items-center gap-2 max-w-fit cursor-pointer border border-white/10 hover:scale-[1.02] animate-shimmer"
         >
           <svg
@@ -434,6 +448,29 @@ const Resume = () => {
           </AnimatePresence>
         </div>
       </div>
+
+      {/* Premium Toast Notification */}
+      <AnimatePresence>
+        {showToast && (
+          <motion.div
+            initial={{ opacity: 0, y: 50, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.9 }}
+            transition={{ type: "spring", stiffness: 300, damping: 20 }}
+            className="fixed bottom-5 right-5 z-[9999] flex items-center gap-3 bg-tertiary/90 backdrop-blur-md border border-violet-accent/30 text-white px-5 py-3.5 rounded-xl shadow-[0_0_30px_rgba(145,94,255,0.25)] min-w-[280px]"
+          >
+            <div className="w-8 h-8 rounded-full bg-violet-accent/20 flex items-center justify-center text-violet-accent flex-shrink-0">
+              <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+              </svg>
+            </div>
+            <div>
+              <p className="font-bold text-[14px] leading-tight">Resume will be available soon</p>
+              <p className="text-secondary text-[11px] mt-0.5">The document has not been uploaded yet.</p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </>
   );
 };

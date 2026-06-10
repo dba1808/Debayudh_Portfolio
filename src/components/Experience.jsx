@@ -1,4 +1,4 @@
-import React from "react";
+import { memo, useCallback } from "react";
 import {
   VerticalTimeline,
   VerticalTimelineElement,
@@ -9,10 +9,10 @@ import { styles } from "../styles";
 import { practicalExperiences, education } from "../constants";
 import { SectionWrapper } from "../hoc";
 import { textVariant, fadeIn, staggerFadeIn } from "../utils/motion";
-import { NeuralNetworkCanvas } from "./canvas";
+import NeuralNetworkCanvas from "./canvas/NeuralNetworkCanvas";
 
 /* ===== Practical Experience Card ===== */
-const PracticalExperienceCard = ({ experience, index }) => {
+const PracticalExperienceCard = memo(({ experience, index }) => {
   return (
     <motion.div
       variants={staggerFadeIn}
@@ -47,19 +47,19 @@ const PracticalExperienceCard = ({ experience, index }) => {
       <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-violet-accent/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
     </motion.div>
   );
-};
+});
 
-const EducationCard = ({ entry, index }) => {
+const EducationCard = memo(({ entry, index }) => {
   const isGlowing = entry.glow;
 
-  const handleMouseEnter = () => {
+  const handleMouseEnter = useCallback(() => {
     const cluster = entry.title.includes("CST") ? "cst" : "cs";
     window.dispatchEvent(new CustomEvent("neuron-hover", { detail: { cluster } }));
-  };
+  }, [entry.title]);
 
-  const handleMouseLeave = () => {
+  const handleMouseLeave = useCallback(() => {
     window.dispatchEvent(new CustomEvent("neuron-hover", { detail: { cluster: null } }));
-  };
+  }, []);
 
   return (
     <div onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave} className="w-full">
@@ -72,6 +72,8 @@ const EducationCard = ({ entry, index }) => {
             : "0 3px 0 rgba(145, 94, 255, 0.3)",
           borderRadius: "16px",
           border: isGlowing ? "1px solid rgba(145, 94, 255, 0.2)" : "1px solid rgba(255, 255, 255, 0.05)",
+          // Prevent overlap/bleed on small screens
+          padding: "18px 16px",
         }}
         contentArrowStyle={{
           borderRight: isGlowing
@@ -95,7 +97,7 @@ const EducationCard = ({ entry, index }) => {
         }
         position={index % 2 === 0 ? "left" : "right"}
       >
-        <div>
+        <div className="education-card-body">
           <h3 className={`text-white text-[22px] font-bold ${isGlowing ? "glow-text" : ""}`}>
             {entry.title}
           </h3>
@@ -107,7 +109,7 @@ const EducationCard = ({ entry, index }) => {
           </p>
         </div>
 
-        <ul className='mt-5 list-disc ml-5 space-y-2'>
+        <ul className='mt-5 list-disc ml-5 space-y-2 education-card-points'>
           {entry.points.map((point, idx) => (
             <li
               key={`education-point-${idx}`}
@@ -118,14 +120,14 @@ const EducationCard = ({ entry, index }) => {
           ))}
         </ul>
 
-        {/* Glowing accent bar for featured entry */}
         {isGlowing && (
           <div className="mt-4 h-[2px] w-full bg-gradient-to-r from-violet-accent via-[#00cea8] to-transparent rounded-full opacity-60" />
         )}
       </VerticalTimelineElement>
     </div>
   );
-};
+});
+
 
 const Experience = () => {
   return (
@@ -159,7 +161,7 @@ const Experience = () => {
       </div>
 
       {/* ===== EDUCATION SECTION ===== */}
-      <div className="relative mt-24 w-full rounded-3xl overflow-hidden py-12 px-4 md:px-10 border border-white/5" style={{ background: "rgba(3, 0, 30, 0.15)" }}>
+      <div className="relative mt-12 sm:mt-24 w-full rounded-3xl overflow-hidden py-8 sm:py-12 px-4 md:px-10 border border-white/5" style={{ background: "rgba(3, 0, 30, 0.15)" }}>
         {/* Background dark gradient overlay and 3D Canvas */}
         <div className="absolute inset-0 pointer-events-none z-0" style={{ background: "linear-gradient(180deg, #020015 0%, #050816 50%, #020015 100%)" }} />
         <div className="absolute inset-0 w-full h-full z-0 pointer-events-none">
@@ -176,7 +178,7 @@ const Experience = () => {
             </h2>
           </motion.div>
 
-          <div className='mt-20 flex flex-col'>
+          <div className='mt-10 sm:mt-20 flex flex-col'>
             <VerticalTimeline layout="2-columns" lineColor="rgba(145, 94, 255, 0.3)">
               {education.map((entry, index) => (
                 <EducationCard
@@ -193,4 +195,4 @@ const Experience = () => {
   );
 };
 
-export default SectionWrapper(Experience, "work");
+export default SectionWrapper(memo(Experience), "work");

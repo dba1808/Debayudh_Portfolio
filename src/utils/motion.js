@@ -4,18 +4,20 @@ const smoothEase = [0.22, 1, 0.36, 1];
 export const textVariant = (delay) => {
   return {
     hidden: {
-      y: -30,
+      y: -25,
       opacity: 0,
+      filter: "blur(6px)",
     },
     show: {
       y: 0,
       opacity: 1,
+      filter: "blur(0px)",
       transition: {
         type: "spring",
-        duration: 1.4,
+        duration: 1.25,
         delay: delay || 0,
-        damping: 24,
-        stiffness: 80,
+        damping: 20,
+        stiffness: 90,
       },
     },
   };
@@ -24,21 +26,23 @@ export const textVariant = (delay) => {
 export const fadeIn = (direction, type, delay, duration) => {
   return {
     hidden: {
-      x: direction === "left" ? 40 : direction === "right" ? -40 : 0,
-      y: direction === "up" ? 40 : direction === "down" ? -40 : 0,
+      x: direction === "left" ? 30 : direction === "right" ? -30 : 0,
+      y: direction === "up" ? 30 : direction === "down" ? -30 : 0,
       opacity: 0,
+      filter: "blur(6px)",
     },
     show: {
       x: 0,
       y: 0,
       opacity: 1,
+      filter: "blur(0px)",
       transition: {
         type: type || "spring",
         delay: delay,
         duration: duration,
         ease: smoothEase,
         damping: 22,
-        stiffness: 70,
+        stiffness: 80,
       },
     },
   };
@@ -47,18 +51,20 @@ export const fadeIn = (direction, type, delay, duration) => {
 export const zoomIn = (delay, duration) => {
   return {
     hidden: {
-      scale: 0.85,
+      scale: 0.88,
       opacity: 0,
+      filter: "blur(6px)",
     },
     show: {
       scale: 1,
       opacity: 1,
+      filter: "blur(0px)",
       transition: {
         type: "spring",
         delay: delay,
         duration: duration,
-        damping: 20,
-        stiffness: 90,
+        damping: 22,
+        stiffness: 95,
         ease: smoothEase,
       },
     },
@@ -71,17 +77,19 @@ export const slideIn = (direction, type, delay, duration) => {
       x: direction === "left" ? "-100%" : direction === "right" ? "100%" : 0,
       y: direction === "up" ? "100%" : direction === "down" ? "100%" : 0,
       opacity: 0,
+      filter: "blur(4px)",
     },
     show: {
       x: 0,
       y: 0,
       opacity: 1,
+      filter: "blur(0px)",
       transition: {
         type: type || "spring",
         delay: delay,
         duration: duration,
         damping: 24,
-        stiffness: 70,
+        stiffness: 75,
         ease: smoothEase,
       },
     },

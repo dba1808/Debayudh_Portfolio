@@ -1,10 +1,10 @@
-import React from "react";
+import { memo } from "react";
 import { motion } from "framer-motion";
 import { staggerContainer } from "../utils/motion";
 import { styles } from "../styles";
 
 const StarWrapper = (Component, idName) =>
-  function HOC() {
+  memo(function HOC() {
     return (
       <motion.section
         variants={staggerContainer()}
@@ -21,6 +21,6 @@ const StarWrapper = (Component, idName) =>
         <Component />
       </motion.section>
     );
-  };
+  });
 
 export default StarWrapper;

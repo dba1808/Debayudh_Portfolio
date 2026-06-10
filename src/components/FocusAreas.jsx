@@ -1,14 +1,15 @@
-import React, { useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { styles } from "../styles";
+import { useInView } from "../hooks/useInView";
 
 // Neural Network Animation for Machine Learning Card
 const NeuralNetworkCard = () => {
-  const canvasRef = useRef(null);
+  const [canvasRef, isInView] = useInView({ rootMargin: "200px 0px" });
   
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas || !isInView) return undefined;
     
     const ctx = canvas.getContext("2d");
     const w = canvas.width;
@@ -77,18 +78,18 @@ const NeuralNetworkCard = () => {
     
     animate();
     return () => cancelAnimationFrame(animationId);
-  }, []);
+  }, [canvasRef, isInView]);
   
   return <canvas ref={canvasRef} className="w-full h-24 rounded-lg" width={200} height={96} />;
 };
 
 // Glowing AI Core for Generative AI Card
 const GlowingAICoreCard = () => {
-  const canvasRef = useRef(null);
+  const [canvasRef, isInView] = useInView({ rootMargin: "200px 0px" });
   
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas || !isInView) return undefined;
     
     const ctx = canvas.getContext("2d");
     const w = canvas.width;
@@ -140,18 +141,18 @@ const GlowingAICoreCard = () => {
     
     animate();
     return () => cancelAnimationFrame(animationId);
-  }, []);
+  }, [canvasRef, isInView]);
   
   return <canvas ref={canvasRef} className="w-full h-24 rounded-lg" width={200} height={96} />;
 };
 
 // Connected Agent Ecosystem for Agentic AI Card
 const AgentEcosystemCard = () => {
-  const canvasRef = useRef(null);
+  const [canvasRef, isInView] = useInView({ rootMargin: "200px 0px" });
   
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas || !isInView) return undefined;
     
     const ctx = canvas.getContext("2d");
     const w = canvas.width;
@@ -208,32 +209,50 @@ const AgentEcosystemCard = () => {
     
     animate();
     return () => cancelAnimationFrame(animationId);
-  }, []);
+  }, [canvasRef, isInView]);
   
   return <canvas ref={canvasRef} className="w-full h-24 rounded-lg" width={200} height={96} />;
 };
 
 // Premium Focus Card Component
-const FocusCard = ({ icon, title, description, children, index }) => {
-  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+const FocusCard = memo(({ icon, title, description, children, index }) => {
   const [isHovered, setIsHovered] = useState(false);
   const cardRef = useRef(null);
+  const frameRef = useRef(null);
+  const lastPointerRef = useRef({ x: 0, y: 0 });
   
-  const handleMouseMove = (e) => {
+  const handleMouseMove = useCallback((e) => {
     if (!cardRef.current) return;
     const rect = cardRef.current.getBoundingClientRect();
-    setMousePos({
+    lastPointerRef.current = {
       x: e.clientX - rect.left,
       y: e.clientY - rect.top,
+    };
+
+    if (frameRef.current) return;
+    frameRef.current = requestAnimationFrame(() => {
+      if (cardRef.current) {
+        cardRef.current.style.setProperty("--spotlight-x", `${lastPointerRef.current.x}px`);
+        cardRef.current.style.setProperty("--spotlight-y", `${lastPointerRef.current.y}px`);
+      }
+      frameRef.current = null;
     });
-  };
+  }, []);
+
+  const handleMouseLeave = useCallback(() => {
+    setIsHovered(false);
+    if (frameRef.current) {
+      cancelAnimationFrame(frameRef.current);
+      frameRef.current = null;
+    }
+  }, []);
   
   return (
     <motion.div
       ref={cardRef}
       onMouseMove={handleMouseMove}
       onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
+      onMouseLeave={handleMouseLeave}
       initial={{ opacity: 0, y: 20 }}
       whileInView={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.6, delay: index * 0.2 }}
@@ -244,7 +263,7 @@ const FocusCard = ({ icon, title, description, children, index }) => {
         <div
           className="absolute -inset-0.5 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"
           style={{
-            background: `radial-gradient(600px at ${mousePos.x}px ${mousePos.y}px, rgba(145, 94, 255, 0.15), transparent 80%)`,
+            background: "radial-gradient(600px at var(--spotlight-x, 50%) var(--spotlight-y, 50%), rgba(145, 94, 255, 0.15), transparent 80%)",
             pointerEvents: "none",
           }}
         />
@@ -305,7 +324,7 @@ const FocusCard = ({ icon, title, description, children, index }) => {
       </motion.div>
     </motion.div>
   );
-};
+});
 
 // Main FocusAreas Component
 const FocusAreas = () => {
@@ -317,7 +336,7 @@ const FocusAreas = () => {
     if (!container) return;
     
     // Create floating particles
-    const particles = Array.from({ length: 20 }, (_, i) => {
+    const particles = Array.from({ length: 20 }, () => {
       const particle = document.createElement("div");
       particle.className = "absolute rounded-full pointer-events-none";
       particle.style.cssText = `
@@ -421,4 +440,4 @@ const FocusAreas = () => {
   );
 };
 
-export default FocusAreas;
+export default memo(FocusAreas);

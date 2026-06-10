@@ -1,13 +1,10 @@
-import { useRef, useState, useCallback } from "react";
+import { memo, useCallback, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import emailjs from "@emailjs/browser";
 import { styles } from "../styles";
-import { EarthCanvas } from "./canvas";
+import EarthCanvas from "./canvas/Earth";
 import { SectionWrapper } from "../hoc";
 import { slideIn } from "../utils/motion";
 import { ToastContainer } from "./Toast";
-import { db } from "../firebase";
-import { collection, addDoc } from "firebase/firestore";
 
 // ─── Sanitization helper ───
 const sanitize = (str) =>
@@ -46,7 +43,7 @@ const Contact = () => {
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState(null);
 
-  const handleChange = (e) => {
+  const handleChange = useCallback((e) => {
     const { name, value } = e.target;
     const field = name === "from_name" ? "name" : name === "from_email" ? "email" : name;
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -54,20 +51,32 @@ const Contact = () => {
     if (errors[field]) {
       setErrors((prev) => ({ ...prev, [field]: undefined }));
     }
-  };
+  }, [errors]);
 
   const dismissToast = useCallback(() => setToast(null), []);
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = useCallback(async (e) => {
     e.preventDefault();
+
+    const nextErrors = validate(form);
+    if (Object.keys(nextErrors).length > 0) {
+      setErrors(nextErrors);
+      return;
+    }
+
     setLoading(true);
 
     // 1. Live Firestore Cloud Database Write (100% Free Core Logging)
     try {
+      const [{ db }, { collection, addDoc }] = await Promise.all([
+        import("../firebase"),
+        import("firebase/firestore"),
+      ]);
+
       await addDoc(collection(db, "mail"), {
-        name: form.name,
-        email: form.email,
-        message: form.message,
+        name: sanitize(form.name),
+        email: sanitize(form.email),
+        message: sanitize(form.message),
         timestamp: new Date()
       });
       console.log("Firestore cloud database updated successfully.");
@@ -77,15 +86,16 @@ const Contact = () => {
 
     // 2. Direct Explicit EmailJS Transmission (100% Free Inbox Delivery)
     try {
+      const emailjs = await import("@emailjs/browser");
       const routingPayload = {
-        from_name: form.name,
+        from_name: sanitize(form.name),
         to_name: "Debayudh",
-        from_email: form.email,
+        from_email: sanitize(form.email),
         to_email: "bhattacharyadebayudh13@gmail.com",
-        message: form.message,
+        message: sanitize(form.message),
       };
 
-      await emailjs.send(
+      await emailjs.default.send(
         "service_yvx1vht",     // Fixed Service ID
         "template_pfde6nn",    // Fixed Custom Template ID
         routingPayload,        // Direct Parameter Mapping Array
@@ -99,7 +109,7 @@ const Contact = () => {
     // 3. Clean UI State Reset Chain
     setLoading(false);
     setForm({ name: "", email: "", message: "" });
-  };
+  }, [form]);
 
   const isDisabled = loading;
 
@@ -201,7 +211,7 @@ const Contact = () => {
 
         <motion.div
           variants={slideIn("right", "tween", 0.2, 1)}
-          className='xl:flex-1 xl:h-auto md:h-[550px] h-[350px]'
+          className='xl:flex-1 h-[350px] md:h-[550px] xl:h-[550px]'
         >
           <EarthCanvas />
         </motion.div>
@@ -213,4 +223,4 @@ const Contact = () => {
   );
 };
 
-export default SectionWrapper(Contact, "contact");
+export default SectionWrapper(memo(Contact), "contact");

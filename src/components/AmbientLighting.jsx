@@ -1,21 +1,58 @@
-import React, { useEffect, useState } from "react";
-import { motion } from "framer-motion";
+import { memo, useEffect } from "react";
+import { motion, useMotionValue } from "framer-motion";
+
+/**
 
 /**
  * AmbientLighting
  * Subtle light sources that illuminate the entire site
  */
 const AmbientLighting = () => {
-  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  const mouseX = useMotionValue(-320);
+  const mouseY = useMotionValue(-320);
+  const mouseOpacity = useMotionValue(0);
 
   useEffect(() => {
+    let frameId = null;
+    let timeoutId = null;
+    let latestX = -320;
+    let latestY = -320;
+
     const handleMouseMove = (e) => {
-      setMousePos({ x: e.clientX, y: e.clientY });
+      latestX = e.clientX - 160;
+      latestY = e.clientY - 160;
+
+      if (timeoutId) clearTimeout(timeoutId);
+
+      // Fade out mouse glow after 3 seconds of inactivity
+      timeoutId = setTimeout(() => {
+        mouseOpacity.set(0);
+      }, 3000);
+
+      if (frameId) return;
+      frameId = requestAnimationFrame(() => {
+        mouseX.set(latestX);
+        mouseY.set(latestY);
+        mouseOpacity.set(0.08); // fade in when mouse moves
+        frameId = null;
+      });
     };
 
-    window.addEventListener("mousemove", handleMouseMove);
-    return () => window.removeEventListener("mousemove", handleMouseMove);
-  }, []);
+    const handleMouseLeave = () => {
+      if (timeoutId) clearTimeout(timeoutId);
+      mouseOpacity.set(0);
+    };
+
+    window.addEventListener("mousemove", handleMouseMove, { passive: true });
+    window.addEventListener("mouseleave", handleMouseLeave, { passive: true });
+    
+    return () => {
+      if (frameId) cancelAnimationFrame(frameId);
+      if (timeoutId) clearTimeout(timeoutId);
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseleave", handleMouseLeave);
+    };
+  }, [mouseX, mouseY, mouseOpacity]);
 
   return (
     <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
@@ -26,6 +63,7 @@ const AmbientLighting = () => {
           background: "radial-gradient(circle, rgba(145, 94, 255, 0.8) 0%, rgba(145, 94, 255, 0) 70%)",
           top: "-10%",
           left: "-5%",
+          willChange: "transform, opacity",
         }}
         animate={{
           y: [0, 20, 0],
@@ -45,6 +83,7 @@ const AmbientLighting = () => {
           background: "radial-gradient(circle, rgba(0, 206, 168, 0.6) 0%, rgba(0, 206, 168, 0) 70%)",
           bottom: "-10%",
           right: "-5%",
+          willChange: "transform, opacity",
         }}
         animate={{
           y: [0, -20, 0],
@@ -65,6 +104,7 @@ const AmbientLighting = () => {
           top: "30%",
           left: "50%",
           transform: "translateX(-50%)",
+          willChange: "transform, opacity",
         }}
         animate={{
           y: [0, 30, 0],
@@ -78,19 +118,13 @@ const AmbientLighting = () => {
 
       {/* Interactive Glow Following Mouse */}
       <motion.div
-        className="absolute w-80 h-80 rounded-full blur-3xl opacity-0 pointer-events-none"
+        className="absolute w-80 h-80 rounded-full blur-3xl pointer-events-none"
         style={{
           background: "radial-gradient(circle, rgba(145, 94, 255, 0.5) 0%, rgba(145, 94, 255, 0) 70%)",
-          x: mousePos.x - 160,
-          y: mousePos.y - 160,
-        }}
-        animate={{
-          opacity: [0, 0.08, 0],
-        }}
-        transition={{
-          duration: 4,
-          ease: "easeInOut",
-          repeat: Infinity,
+          x: mouseX,
+          y: mouseY,
+          opacity: mouseOpacity,
+          willChange: "transform, opacity",
         }}
       />
 
@@ -106,4 +140,4 @@ const AmbientLighting = () => {
   );
 };
 
-export default AmbientLighting;
+export default memo(AmbientLighting);

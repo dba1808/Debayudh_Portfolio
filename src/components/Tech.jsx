@@ -1,8 +1,8 @@
-import React from "react";
+import { memo } from "react";
 import { SectionWrapper } from "../hoc";
 import { technologies } from "../constants";
 
-const TechCard = ({ technology }) => {
+const TechCard = memo(({ technology }) => {
   return (
     <div
       className='w-24 h-24 sm:w-28 sm:h-28 relative flex items-center justify-center cursor-pointer group'
@@ -29,7 +29,7 @@ const TechCard = ({ technology }) => {
       </div>
     </div>
   );
-};
+});
 
 const Tech = () => {
   return (
@@ -41,4 +41,4 @@ const Tech = () => {
   );
 };
 
-export default SectionWrapper(Tech, "");
+export default SectionWrapper(memo(Tech), "");

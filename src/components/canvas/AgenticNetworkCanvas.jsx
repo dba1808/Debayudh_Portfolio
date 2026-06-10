@@ -1,4 +1,5 @@
-import React, { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef } from "react";
+import { useInView } from "../../hooks/useInView";
 
 /**
  * Agentic Network Canvas — Pure CSS/Canvas2D implementation.
@@ -9,24 +10,33 @@ const AgenticNetworkCanvas = () => {
   const canvasRef = useRef(null);
   const mouse = useRef({ x: 0.5, y: 0.5 });
   const animRef = useRef(null);
+  const nodesRef = useRef([]);
+  const [containerRef, isInView] = useInView({ rootMargin: "300px 0px" });
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas || !isInView) return undefined;
     const ctx = canvas.getContext("2d");
 
-    // Generate nodes
-    const nodeCount = 20;
-    const nodes = Array.from({ length: nodeCount }, (_, i) => ({
-      x: Math.random(),
-      y: Math.random(),
-      baseX: Math.random(),
-      baseY: Math.random(),
-      speed: 0.2 + Math.random() * 0.4,
-      offset: Math.random() * Math.PI * 2,
-      radius: 1.5 + Math.random() * 2.5,
-      color: i % 3 === 0 ? "#915eff" : i % 3 === 1 ? "#00cea8" : "#56ccf2",
-    }));
+    if (nodesRef.current.length === 0) {
+      const nodeCount = 18;
+      nodesRef.current = Array.from({ length: nodeCount }, (_, i) => {
+        const baseX = Math.random();
+        const baseY = Math.random();
+        return {
+          x: baseX,
+          y: baseY,
+          baseX,
+          baseY,
+          speed: 0.2 + Math.random() * 0.4,
+          offset: Math.random() * Math.PI * 2,
+          radius: 1.5 + Math.random() * 2.5,
+          color: i % 3 === 0 ? "#915eff" : i % 3 === 1 ? "#00cea8" : "#56ccf2",
+        };
+      });
+    }
+
+    const nodes = nodesRef.current;
 
     const connectionThreshold = 0.28;
 
@@ -47,7 +57,15 @@ const AgenticNetworkCanvas = () => {
       mouse.current.x = e.clientX / window.innerWidth;
       mouse.current.y = e.clientY / window.innerHeight;
     };
-    window.addEventListener("mousemove", handleMouseMove);
+    const handleTouchMove = (e) => {
+      if (e.touches && e.touches[0]) {
+        mouse.current.x = e.touches[0].clientX / window.innerWidth;
+        mouse.current.y = e.touches[0].clientY / window.innerHeight;
+      }
+    };
+    window.addEventListener("mousemove", handleMouseMove, { passive: true });
+    window.addEventListener("touchmove", handleTouchMove, { passive: true });
+
 
     const animate = (time) => {
       const t = time * 0.001;
@@ -118,14 +136,15 @@ const AgenticNetworkCanvas = () => {
       cancelAnimationFrame(animRef.current);
       window.removeEventListener("resize", resize);
       window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("touchmove", handleTouchMove);
     };
-  }, []);
+  }, [isInView]);
 
   return (
-    <div className="agentic-network-canvas">
+    <div ref={containerRef} className="agentic-network-canvas">
       <canvas ref={canvasRef} style={{ width: "100%", height: "100%" }} />
     </div>
   );
 };
 
-export default AgenticNetworkCanvas;
+export default memo(AgenticNetworkCanvas);

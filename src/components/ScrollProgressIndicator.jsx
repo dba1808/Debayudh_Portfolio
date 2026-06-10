@@ -1,24 +1,42 @@
-import React, { useEffect, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 
 /**
  * ScrollProgressIndicator
  * Premium glowing neural pathway showing scroll progress
  */
+const particles = [0, 1, 2];
+
 const ScrollProgressIndicator = () => {
   const [scrollProgress, setScrollProgress] = useState(0);
   const [isVisible, setIsVisible] = useState(false);
+  const viewBox = useMemo(
+    () => `0 0 ${typeof window !== "undefined" ? window.innerWidth : 1200} 4`,
+    []
+  );
 
   useEffect(() => {
+    let ticking = false;
     const handleScroll = () => {
-      const scrollTop = window.scrollY;
-      const docHeight = document.documentElement.scrollHeight - window.innerHeight;
-      const progress = docHeight > 0 ? (scrollTop / docHeight) * 100 : 0;
-      setScrollProgress(progress);
-      setIsVisible(scrollTop > 100);
+      if (ticking) return;
+      ticking = true;
+
+      requestAnimationFrame(() => {
+        const scrollTop = window.scrollY;
+        const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+        const progress = docHeight > 0 ? (scrollTop / docHeight) * 100 : 0;
+
+        setScrollProgress((current) => (Math.abs(current - progress) > 0.15 ? progress : current));
+        setIsVisible((current) => {
+          const next = scrollTop > 100;
+          return current === next ? current : next;
+        });
+        ticking = false;
+      });
     };
 
-    window.addEventListener("scroll", handleScroll);
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    handleScroll();
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
@@ -57,7 +75,7 @@ const ScrollProgressIndicator = () => {
       />
 
       {/* Animated particles along the path */}
-      {[0, 1, 2].map((i) => (
+      {particles.map((i) => (
         <motion.div
           key={i}
           className="absolute w-1 h-1 rounded-full bg-cyan-400 blur-sm"
@@ -82,7 +100,7 @@ const ScrollProgressIndicator = () => {
       <svg
         className="absolute inset-0 w-full h-full"
         preserveAspectRatio="none"
-        viewBox={`0 0 ${window.innerWidth} 4`}
+        viewBox={viewBox}
       >
         <defs>
           <linearGradient id="progressGradient" x1="0%" y1="0%" x2="100%" y2="0%">
@@ -114,4 +132,4 @@ const ScrollProgressIndicator = () => {
   );
 };
 
-export default ScrollProgressIndicator;
+export default memo(ScrollProgressIndicator);

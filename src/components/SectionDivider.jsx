@@ -1,5 +1,6 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
+import { useInView } from "../hooks/useInView";
 
 /**
  * SectionDivider
@@ -9,8 +10,23 @@ import { motion } from "framer-motion";
 const SectionDivider = ({ variant = "neural" }) => {
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
+  const [visibilityRef, isInView] = useInView({ rootMargin: "250px 0px" });
   const [scrollProgress, setScrollProgress] = useState(0);
   const [nearbyNode, setNearbyNode] = useState(null);
+  const [isMobile, setIsMobile] = useState(false);
+  const positions = useMemo(() => [0.15, 0.5, 0.85], []);
+
+  useEffect(() => {
+    const checkMobile = () => {
+      const match = window.matchMedia("(max-width: 768px)").matches || 
+                    ('ontouchstart' in window) || 
+                    (navigator.maxTouchPoints > 0);
+      setIsMobile(match);
+    };
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -41,10 +57,10 @@ const SectionDivider = ({ variant = "neural" }) => {
   }, []);
 
   useEffect(() => {
-    if (variant !== "particles") return;
+    if (variant !== "particles") return undefined;
 
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas) return undefined;
 
     const ctx = canvas.getContext("2d");
     canvas.width = canvas.offsetWidth;
@@ -52,6 +68,22 @@ const SectionDivider = ({ variant = "neural" }) => {
 
     const particles = [];
     const particleCount = 60;
+
+    const mouse = { x: -1000, y: -1000 };
+
+    const handleMouseMove = (e) => {
+      const rect = canvas.getBoundingClientRect();
+      mouse.x = (e.clientX - rect.left) * (canvas.width / rect.width);
+      mouse.y = (e.clientY - rect.top) * (canvas.height / rect.height);
+    };
+
+    const handleMouseLeave = () => {
+      mouse.x = -1000;
+      mouse.y = -1000;
+    };
+
+    window.addEventListener("mousemove", handleMouseMove, { passive: true });
+    canvas.addEventListener("mouseleave", handleMouseLeave, { passive: true });
 
     class Particle {
       constructor() {
@@ -69,6 +101,27 @@ const SectionDivider = ({ variant = "neural" }) => {
         this.y += this.vy;
         this.vy += 0.08; // gravity
         this.pulsePhase += 0.05;
+
+        // Proximity magnetic repulsion
+        const dx = this.x - mouse.x;
+        const dy = this.y - mouse.y;
+        const distSq = dx * dx + dy * dy;
+        if (distSq < 14400) { // 120px radius
+          const dist = Math.sqrt(distSq);
+          if (dist > 0) {
+            const force = (120 - dist) / 120;
+            this.vx += (dx / dist) * force * 0.45;
+            this.vy += (dy / dist) * force * 0.45;
+          }
+        }
+
+        // Limit speed to maintain organic flow
+        const speedSq = this.vx * this.vx + this.vy * this.vy;
+        if (speedSq > 9) {
+          const speed = Math.sqrt(speedSq);
+          this.vx = (this.vx / speed) * 3;
+          this.vy = (this.vy / speed) * 3;
+        }
 
         if (this.x < 0) this.x = canvas.width;
         if (this.x > canvas.width) this.x = 0;
@@ -100,6 +153,8 @@ const SectionDivider = ({ variant = "neural" }) => {
       particles.push(new Particle());
     }
 
+    let animationFrameId = null;
+
     const animate = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -118,9 +173,10 @@ const SectionDivider = ({ variant = "neural" }) => {
         particles.slice(i + 1).forEach((p2) => {
           const dx = p1.x - p2.x;
           const dy = p1.y - p2.y;
-          const distance = Math.sqrt(dx * dx + dy * dy);
+          const distSq = dx * dx + dy * dy;
 
-          if (distance < 180) {
+          if (distSq < 32400) { // 180^2
+            const distance = Math.sqrt(distSq);
             const connection = 1 - distance / 180;
             const baseOpacity = 0.15 * connection * p1.opacity;
             
@@ -143,17 +199,29 @@ const SectionDivider = ({ variant = "neural" }) => {
         });
       });
 
-      requestAnimationFrame(animate);
+      animationFrameId = requestAnimationFrame(animate);
     };
 
     animate();
+
+    return () => {
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+      }
+      window.removeEventListener("mousemove", handleMouseMove);
+      canvas.removeEventListener("mouseleave", handleMouseLeave);
+    };
   }, [variant]);
 
   if (variant === "particles") {
     return (
-      <div 
+      <motion.div 
         ref={containerRef}
         className="relative w-full h-40 flex items-center justify-center bg-gradient-to-b from-transparent via-violet-accent/8 to-transparent overflow-hidden"
+        style={{
+          opacity: 1 - Math.abs(scrollProgress) * 0.75,
+          scale: 0.95 + (1 - Math.abs(scrollProgress)) * 0.05,
+        }}
       >
         <motion.div
           className="absolute inset-0"
@@ -167,15 +235,19 @@ const SectionDivider = ({ variant = "neural" }) => {
             className="absolute inset-0 w-full h-full"
           />
         </motion.div>
-      </div>
+      </motion.div>
     );
   }
 
   // Neural pathway variant with scroll interactivity
   return (
-    <div 
+    <motion.div 
       ref={containerRef}
       className="relative w-full h-40 flex items-center justify-center overflow-hidden bg-gradient-to-b from-transparent via-violet-accent/8 to-transparent"
+      style={{
+        opacity: 1 - Math.abs(scrollProgress) * 0.75,
+        scale: 0.95 + (1 - Math.abs(scrollProgress)) * 0.05,
+      }}
     >
       <svg
         className="absolute w-full h-full"
@@ -196,7 +268,7 @@ const SectionDivider = ({ variant = "neural" }) => {
 
           {/* Enhanced bloom filter */}
           <filter id="glow">
-            <feGaussianBlur stdDeviation="4" result="coloredBlur" />
+            <feGaussianBlur stdDeviation={isMobile ? "2" : "4"} result="coloredBlur" />
             <feMerge>
               <feMergeNode in="coloredBlur" />
               <feMergeNode in="SourceGraphic" />
@@ -205,7 +277,7 @@ const SectionDivider = ({ variant = "neural" }) => {
 
           {/* Super glow for nodes */}
           <filter id="superGlow">
-            <feGaussianBlur stdDeviation="6" result="coloredBlur" />
+            <feGaussianBlur stdDeviation={isMobile ? "3" : "6"} result="coloredBlur" />
             <feMerge>
               <feMergeNode in="coloredBlur" />
               <feMergeNode in="coloredBlur" />
@@ -293,12 +365,17 @@ const SectionDivider = ({ variant = "neural" }) => {
               stroke="rgba(145, 94, 255, 0.3)"
               strokeWidth="2"
               animate={{
-                r: nearbyNode === i ? [12, 18, 12] : [12, 15, 12],
-                opacity: nearbyNode === i ? [0.5, 1, 0.5] : [0.2, 0.4, 0.2],
+                scale: nearbyNode === i ? 1.4 : 1.0,
+                opacity: nearbyNode === i ? 0.8 : 0.3,
+              }}
+              style={{
+                originX: `${position * 1200}px`,
+                originY: "120px",
               }}
               transition={{
-                duration: nearbyNode === i ? 0.8 : 1.5,
-                repeat: Infinity,
+                type: "spring",
+                stiffness: 150,
+                damping: 15,
               }}
             />
 
@@ -310,21 +387,16 @@ const SectionDivider = ({ variant = "neural" }) => {
               fill={nearbyNode === i ? "rgba(0, 206, 168, 0.9)" : "rgba(145, 94, 255, 0.8)"}
               filter="url(#superGlow)"
               animate={{
-                r: nearbyNode === i ? [7, 10, 7] : [7, 8, 7],
-                boxShadow: nearbyNode === i ? [
-                  "0 0 20px rgba(145, 94, 255, 0.8)",
-                  "0 0 40px rgba(0, 206, 168, 0.8)",
-                  "0 0 20px rgba(145, 94, 255, 0.8)",
-                ] : [
-                  "0 0 10px rgba(145, 94, 255, 0.4)",
-                  "0 0 20px rgba(145, 94, 255, 0.4)",
-                  "0 0 10px rgba(145, 94, 255, 0.4)",
-                ],
+                scale: nearbyNode === i ? 1.3 : 1.0,
+              }}
+              style={{
+                originX: `${position * 1200}px`,
+                originY: "120px",
               }}
               transition={{
-                duration: nearbyNode === i ? 0.8 : 1.5,
-                delay: i * 0.2,
-                repeat: Infinity,
+                type: "spring",
+                stiffness: 150,
+                damping: 15,
               }}
             />
 
@@ -338,12 +410,17 @@ const SectionDivider = ({ variant = "neural" }) => {
                 stroke="rgba(0, 206, 168, 0.6)"
                 strokeWidth="2"
                 animate={{
-                  r: [7, 25],
+                  scale: [1, 3.5],
                   opacity: [1, 0],
+                }}
+                style={{
+                  originX: `${position * 1200}px`,
+                  originY: "120px",
                 }}
                 transition={{
                   duration: 1.2,
                   repeat: Infinity,
+                  ease: "easeOut",
                 }}
               />
             )}
@@ -388,7 +465,7 @@ const SectionDivider = ({ variant = "neural" }) => {
       >
         Next ↓
       </motion.div>
-    </div>
+    </motion.div>
   );
 };
 

@@ -1,4 +1,4 @@
-import React from "react";
+import { memo } from "react";
 import { motion } from "framer-motion";
 import { styles } from "../styles";
 import { SectionWrapper } from "../hoc";
@@ -43,11 +43,11 @@ const About = () => {
       </motion.p>
 
       {/* Focus Areas Section */}
-      <div className='mt-20'>
+      <div className='mt-12 sm:mt-20'>
         <FocusAreas />
       </div>
     </>
   );
 };
 
-export default SectionWrapper(About, "about");
+export default SectionWrapper(memo(About), "about");
