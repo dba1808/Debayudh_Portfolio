@@ -293,7 +293,17 @@ html {
 /* ========== CANVAS & 3D STYLING ========== */
 canvas {
   touch-action: none;
+  /* Reduce GPU/CPU usage on low-end devices */
+  contain: layout paint style;
 }
+
+/* Motion/GPU reduction for smoother low-end performance */
+@media (prefers-reduced-motion: reduce) {
+  .timeline-pulse-gradient {
+    animation: none !important;
+  }
+}
+
 
 /* ========== CARD IMAGE HOVER OVERLAY ========== */
 .card-img_hover {
